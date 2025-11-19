@@ -238,6 +238,153 @@ body {
   color: #6b7280;
 }
 
+/* Table row hover state for better scanability */
+.table tbody tr:hover {
+  background: #f9fafb;
+}
+
+/* Utility alignment */
+.text-right {
+  text-align: right;
+}
+
+/* Badges (used for payment mode, statuses, etc.) */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.badge-payment-cash {
+  background: #ecfdf3;
+  color: #166534;
+}
+
+.badge-payment-upi {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.badge-payment-credit {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.badge-payment-other {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+/* Invoice view tweaks */
+.page.invoice-view h3 {
+  margin-top: 1.5rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.invoice-meta > div {
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  padding: 0.75rem 0.9rem;
+  background: #f9fafb;
+}
+
+.page-header > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+@media (max-width: 640px) {
+  .app-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+  }
+
+  .app-header-left {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .app-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+  }
+
+  .app-nav a {
+    margin-left: 0;
+    font-size: 0.85rem;
+    padding: 0.2rem 0.4rem;
+  }
+
+  .app-main {
+    margin: 0.75rem auto;
+    padding: 0 0.5rem 1.5rem;
+  }
+
+  .page {
+    padding: 0.9rem;
+    border-radius: 6px;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .page-header > div {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .page-header > div .btn {
+    flex: 1 1 120px;
+    justify-content: center;
+  }
+
+  .form-grid,
+  .totals-grid,
+  .invoice-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .form-actions {
+    flex-wrap: wrap;
+  }
+
+  .form-actions .btn {
+    flex: 1 1 140px;
+    justify-content: center;
+  }
+
+  .table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table thead,
+  .table tbody,
+  .table tr,
+  .table th,
+  .table td {
+    white-space: nowrap;
+  }
+}
+
 @media print {
   body {
     background: #fff;

@@ -8,6 +8,7 @@
     <h2>Invoice {{ invoice.invoice_number }}</h2>
     <div>
       <button class="btn" onclick="window.print()">Print / Save as PDF</button>
+      <a class="btn" href="{{ url_for('download_invoice', invoice_id=invoice.id) }}">Download Invoice</a>
       <a class="btn" href="{{ url_for('invoice_list') }}">Back to list</a>
     </div>
   </div>
@@ -37,7 +38,7 @@
       </tr>
     </thead>
     <tbody>
-      {% for item in invoice.items %}
+      {% for item in invoice['items'] %}
         <tr>
           <td>{{ item.description }}</td>
           <td>{{ item.quantity }}</td>
@@ -51,7 +52,16 @@
   <div class="totals-grid invoice-totals">
     <div>
       <h3>Payment Details</h3>
-      <p><strong>Payment Mode:</strong> {{ invoice.payment_mode }}</p>
+      <p>
+        <strong>Payment Mode:</strong>
+        {% if invoice.payment_mode %}
+          <span class="badge badge-payment-{{ (invoice.payment_mode or 'OTHER')|lower }}">
+            {{ invoice.payment_mode }}
+          </span>
+        {% else %}
+          -
+        {% endif %}
+      </p>
       {% if invoice.payment_reference %}
         <p><strong>Reference:</strong> {{ invoice.payment_reference }}</p>
       {% endif %}

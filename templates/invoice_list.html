@@ -16,7 +16,7 @@
           <th>Invoice #</th>
           <th>Date &amp; Time</th>
           <th>Customer</th>
-          <th>Total</th>
+          <th class="text-right">Total</th>
           <th>Payment</th>
           <th></th>
         </tr>
@@ -27,8 +27,16 @@
             <td>{{ inv.invoice_number }}</td>
             <td>{{ inv.created_at }}</td>
             <td>{{ inv.customer_name or '-' }}</td>
-            <td>{{ '%.2f'|format(inv.total or 0) }}</td>
-            <td>{{ inv.payment_mode or '-' }}</td>
+            <td class="text-right">{{ '%.2f'|format(inv.total or 0) }}</td>
+            <td>
+              {% if inv.payment_mode %}
+                <span class="badge badge-payment-{{ (inv.payment_mode or 'OTHER')|lower }}">
+                  {{ inv.payment_mode }}
+                </span>
+              {% else %}
+                -
+              {% endif %}
+            </td>
             <td>
               <a class="btn small" href="{{ url_for('invoice_view', invoice_id=inv.id) }}">View</a>
             </td>
