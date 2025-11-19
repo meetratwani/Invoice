@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+
+{% block title %}Store Settings - R Sanju Store{% endblock %}
+
+{% block content %}
+<section class="page">
+  <div class="page-header">
+    <h2>Store Settings</h2>
+  </div>
+
+  <form method="post" class="form">
+    <label>
+      Store Name
+      <input type="text" name="store_name" value="{{ store.store_name or 'R Sanju Store' }}" required />
+    </label>
+    <label>
+      Address
+      <textarea name="address" rows="2">{{ store.address }}</textarea>
+    </label>
+    <label>
+      Phone / WhatsApp
+      <input type="text" name="phone" value="{{ store.phone }}" />
+    </label>
+    <label>
+      Email
+      <input type="email" name="email" value="{{ store.email }}" />
+    </label>
+    <label>
+      Logo URL (optional)
+      <input type="url" name="logo_url" value="{{ store.logo_url }}" />
+    </label>
+
+    <div class="form-actions">
+      <button type="submit" class="btn primary">Save Settings</button>
+      <a href="{{ url_for('invoice_list') }}" class="btn">Back</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

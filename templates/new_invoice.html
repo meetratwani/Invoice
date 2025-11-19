@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+
+{% block title %}New Invoice - R Sanju Store{% endblock %}
+
+{% block content %}
+<section class="page">
+  <div class="page-header">
+    <h2>New Invoice</h2>
+  </div>
+
+  <form method="post" class="form" id="invoice-form">
+    <div class="form-grid">
+      <div>
+        <h3>Invoice Details</h3>
+        <label>
+          Invoice Date
+          <input type="date" name="invoice_date" value="{{ today }}" required />
+        </label>
+      </div>
+
+      <div>
+        <h3>Customer Details</h3>
+        <label>
+          Name
+          <input type="text" name="customer_name" placeholder="Customer name" />
+        </label>
+        <label>
+          Phone
+          <input type="text" name="customer_phone" placeholder="Phone number" />
+        </label>
+        <label>
+          Address
+          <textarea name="customer_address" rows="2" placeholder="Customer address"></textarea>
+        </label>
+        <label>
+          GSTIN (optional)
+          <input type="text" name="customer_gstin" placeholder="GST number" />
+        </label>
+      </div>
+    </div>
+
+    <h3>Items</h3>
+    <table class="table items-table" id="items-table">
+      <thead>
+        <tr>
+          <th style="width: 50%">Description</th>
+          <th>Qty</th>
+          <th>Unit Price</th>
+          <th>Line Total</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="items-body">
+        <tr>
+          <td>
+            <input type="text" name="item_description[]" placeholder="Item description" />
+          </td>
+          <td>
+            <input type="number" name="item_quantity[]" min="0" step="1" value="1" />
+          </td>
+          <td>
+            <input type="number" name="item_unit_price[]" min="0" step="0.01" value="0" />
+          </td>
+          <td class="line-total">0.00</td>
+          <td>
+            <button type="button" class="btn small danger remove-row">X</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <button type="button" class="btn" id="add-item">+ Add Item</button>
+
+    <div class="totals-grid">
+      <div>
+        <h3>Payment</h3>
+        <label>
+          Payment Mode
+          <select name="payment_mode" required>
+            <option value="">Select mode</option>
+            <option value="CASH">Cash</option>
+            <option value="UPI">UPI</option>
+            <option value="CREDIT">Credit</option>
+          </select>
+        </label>
+        <label>
+          Payment Reference (UPI txn ID, card last 4 digits, etc.)
+          <input type="text" name="payment_reference" />
+        </label>
+        <label>
+          Notes
+          <textarea name="notes" rows="2" placeholder="Any extra info (e.g. return policy)"></textarea>
+        </label>
+      </div>
+
+      <div class="totals-box">
+        <div class="totals-row">
+          <span>Subtotal:</span>
+          <span id="subtotal-display">0.00</span>
+        </div>
+        <div class="totals-row">
+          <span>Discount:</span>
+          <input type="number" name="discount" id="discount" min="0" step="0.01" value="0" />
+        </div>
+        <div class="totals-row">
+          <span>Tax:</span>
+          <input type="number" name="tax" id="tax" min="0" step="0.01" value="0" />
+        </div>
+        <div class="totals-row grand-total">
+          <span>Total:</span>
+          <span id="total-display">0.00</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn primary">Save Invoice</button>
+      <a href="{{ url_for('invoice_list') }}" class="btn">Cancel</a>
+    </div>
+  </form>
+</section>
+
+<script src="{{ url_for('static', filename='js/new_invoice.js') }}"></script>
+{% endblock %}
