@@ -62,6 +62,13 @@
           -
         {% endif %}
       </p>
+
+      {% if invoice.payment_mode == 'CREDIT' %}
+        <form method="post" action="{{ url_for('convert_credit_to_cash', invoice_id=invoice.id) }}" onsubmit="return confirm('Convert this invoice from CREDIT to CASH?');">
+          <button type="submit" class="btn small">Convert CREDIT to CASH</button>
+        </form>
+      {% endif %}
+
       {% if invoice.payment_reference %}
         <p><strong>Reference:</strong> {{ invoice.payment_reference }}</p>
       {% endif %}

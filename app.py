@@ -2,6 +2,8 @@ import os
 from datetime import datetime, date
 import json
 from pathlib import Path
+import csv
+from io import StringIO
 
 from flask import Flask, render_template, request, redirect, url_for, flash, make_response
 
@@ -70,9 +72,38 @@ def generate_invoice_number() -> str:
 @app.route("/")
 def invoice_list():
     store = get_store_settings()
+
+    # Optional search filters from query string
+    search_customer = (request.args.get("customer") or "").strip()
+    search_date = (request.args.get("date") or "").strip()
+
     invoices = list(_data.get("invoices", []))
     invoices.sort(key=lambda inv: inv.get("created_at", ""), reverse=True)
-    return render_template("invoice_list.html", store=store, invoices=invoices)
+
+    # Filter by customer name (case-insensitive substring match)
+    customer_filter = search_customer.lower()
+    if customer_filter:
+        invoices = [
+            inv
+            for inv in invoices
+            if (inv.get("customer_name") or "").lower().find(customer_filter) != -1
+        ]
+
+    # Filter by invoice date (fall back to date part of created_at)
+    if search_date:
+        def _get_invoice_date(inv):
+            inv_date_str = inv.get("invoice_date") or inv.get("created_at", "").split(" ")[0]
+            return inv_date_str
+
+        invoices = [inv for inv in invoices if _get_invoice_date(inv) == search_date]
+
+    return render_template(
+        "invoice_list.html",
+        store=store,
+        invoices=invoices,
+        search_customer=search_customer,
+        search_date=search_date,
+    )
 
 
 @app.route("/invoice/new", methods=["GET", "POST"])
@@ -176,6 +207,56 @@ def invoice_view(invoice_id: str):
         return redirect(url_for("invoice_list"))
 
     return render_template("invoice_view.html", store=store, invoice=invoice)
+
+
+@app.route("/invoice/<invoice_id>/delete", methods=["POST"])
+def delete_invoice(invoice_id: str):
+    """Delete a single invoice by id."""
+    invoices = _data.get("invoices", [])
+    index_to_remove = None
+    for idx, inv in enumerate(invoices):
+        if inv.get("id") == invoice_id:
+            index_to_remove = idx
+            break
+
+    if index_to_remove is None:
+        flash("Invoice not found.", "error")
+    else:
+        invoices.pop(index_to_remove)
+        _save_data()
+        flash("Invoice deleted successfully.", "success")
+
+    return redirect(url_for("invoice_list"))
+
+
+@app.route("/invoice/<invoice_id>/convert-credit-to-cash", methods=["POST"])
+def convert_credit_to_cash(invoice_id: str):
+    """Convert an invoice payment mode from CREDIT to CASH."""
+    invoices = _data.get("invoices", [])
+    invoice = next((inv for inv in invoices if inv.get("id") == invoice_id), None)
+    if not invoice:
+        flash("Invoice not found.", "error")
+        return redirect(url_for("invoice_list"))
+
+    if (invoice.get("payment_mode") or "").upper() != "CREDIT":
+        flash("Invoice is not in CREDIT payment mode.", "error")
+        return redirect(url_for("invoice_view", invoice_id=invoice_id))
+
+    invoice["payment_mode"] = "CASH"
+
+    # Append a note so you remember that this was converted from credit to cash
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    existing_notes = (invoice.get("notes") or "").strip()
+    conversion_note = f"[Converted from CREDIT to CASH on {timestamp}]"
+    if existing_notes:
+        invoice["notes"] = existing_notes + "\n" + conversion_note
+    else:
+        invoice["notes"] = conversion_note
+
+    _save_data()
+    flash("Invoice payment changed from CREDIT to CASH.", "success")
+
+    return redirect(url_for("invoice_view", invoice_id=invoice_id))
 
 
 @app.route("/invoice/<invoice_id>/download")
@@ -343,6 +424,119 @@ def reports():
     )
 
 
+@app.route("/reports/export")
+def export_report():
+    """Export the current report (same filters) as a CSV file that opens in Excel."""
+    invoices = _data.get("invoices", [])
+    expenses_data = _data.get("expenses", [])
+
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    current_month_str = datetime.now().strftime("%Y-%m")
+
+    period = request.args.get("period") or "daily"
+    selected_date = request.args.get("date") or today_str
+    selected_month = request.args.get("month") or current_month_str
+
+    if period == "monthly":
+        try:
+            year, month = map(int, selected_month.split("-"))
+        except ValueError:
+            year, month = datetime.now().year, datetime.now().month
+
+        inv_filtered = []
+        for inv in invoices:
+            inv_date_str = inv.get("invoice_date") or inv.get("created_at", "").split(" ")[0]
+            try:
+                inv_d = datetime.strptime(inv_date_str, "%Y-%m-%d").date()
+            except Exception:
+                continue
+            if inv_d.year == year and inv_d.month == month:
+                inv_filtered.append(inv)
+
+        exp_filtered = []
+        for exp in expenses_data:
+            exp_date_str = exp.get("date")
+            if not exp_date_str:
+                continue
+            try:
+                exp_d = datetime.strptime(exp_date_str, "%Y-%m-%d").date()
+            except Exception:
+                continue
+            if exp_d.year == year and exp_d.month == month:
+                exp_filtered.append(exp)
+
+        label = f"{year}-{month:02d} (Monthly)"
+    else:
+        try:
+            d = datetime.strptime(selected_date, "%Y-%m-%d").date()
+        except ValueError:
+            d = date.today()
+            selected_date = d.strftime("%Y-%m-%d")
+
+        inv_filtered = []
+        for inv in invoices:
+            inv_date_str = inv.get("invoice_date") or inv.get("created_at", "").split(" ")[0]
+            try:
+                inv_d = datetime.strptime(inv_date_str, "%Y-%m-%d").date()
+            except Exception:
+                continue
+            if inv_d == d:
+                inv_filtered.append(inv)
+
+        exp_filtered = [exp for exp in expenses_data if exp.get("date") == selected_date]
+        label = f"{selected_date} (Daily)"
+
+    sales_total = sum(float(inv.get("total") or 0) for inv in inv_filtered)
+    expenses_total = sum(float(exp.get("amount") or 0) for exp in exp_filtered)
+    net_total = sales_total - expenses_total
+
+    output = StringIO()
+    writer = csv.writer(output)
+
+    # Summary section
+    writer.writerow(["Report", label])
+    writer.writerow(["Total sales", f"{sales_total:.2f}"])
+    writer.writerow(["Total expenses", f"{expenses_total:.2f}"])
+    writer.writerow(["Net (sales - expenses)", f"{net_total:.2f}"])
+    writer.writerow([])
+
+    # Invoices section
+    writer.writerow(["Invoices"])
+    writer.writerow(["Invoice #", "Date", "Customer", "Total", "Payment mode"])
+    for inv in inv_filtered:
+        writer.writerow([
+            inv.get("invoice_number", ""),
+            inv.get("invoice_date") or (inv.get("created_at", "").split(" ")[0] if inv.get("created_at") else ""),
+            inv.get("customer_name") or "-",
+            f"{float(inv.get('total') or 0):.2f}",
+            inv.get("payment_mode") or "-",
+        ])
+
+    writer.writerow([])
+
+    # Expenses section
+    writer.writerow(["Expenses"])
+    writer.writerow(["Date", "Description", "Category", "Amount"])
+    for exp in exp_filtered:
+        writer.writerow([
+            exp.get("date", ""),
+            exp.get("description", ""),
+            exp.get("category") or "-",
+            f"{float(exp.get('amount') or 0):.2f}",
+        ])
+
+    csv_data = output.getvalue()
+    output.close()
+
+    filename_period = selected_month if period == "monthly" else selected_date
+    filename = f"report-{period}-{filename_period}.csv"
+
+    response = make_response(csv_data)
+    response.headers["Content-Type"] = "text/csv; charset=utf-8"
+    response.headers["Content-Disposition"] = f"attachment; filename={filename}"
+    return response
+
+
 @app.route("/settings", methods=["GET", "POST"])
 def settings():
     if request.method == "POST":
@@ -363,4 +557,4 @@ def settings():
 
 if __name__ == "__main__":
     # Runs on http://127.0.0.1:5000/ by default
-    app.run(debug=True)
+    app.run(debug=True, host="0.0.0.0", port=5000)

@@ -1,5 +1,11 @@
 {
-  "store_settings": null,
+  "store_settings": {
+    "store_name": "R Sanju Store",
+    "address": "",
+    "phone": "",
+    "email": "",
+    "logo_url": ""
+  },
   "invoices": [
     {
       "invoice_number": "RS-2025-0001",
@@ -52,31 +58,6 @@
       "id": "2"
     },
     {
-      "invoice_number": "RS-2025-0003",
-      "created_at": "2025-11-19 21:37:15",
-      "invoice_date": "2025-11-19",
-      "customer_name": "Vikas 84",
-      "customer_phone": "8734824104",
-      "customer_address": ".",
-      "customer_gstin": "",
-      "items": [
-        {
-          "description": "S 22 Ultra",
-          "quantity": 1.0,
-          "unit_price": 100.0,
-          "line_total": 100.0
-        }
-      ],
-      "subtotal": 100.0,
-      "discount": 50.0,
-      "tax": 0.0,
-      "total": 50.0,
-      "payment_mode": "CREDIT",
-      "payment_reference": "ritu",
-      "notes": "",
-      "id": "3"
-    },
-    {
       "invoice_number": "RS-2025-0004",
       "created_at": "2025-11-19 21:41:36",
       "invoice_date": "2025-11-19",
@@ -93,9 +74,27 @@
       "payment_reference": "ritu",
       "notes": "",
       "id": "4"
+    },
+    {
+      "invoice_number": "RS-2025-0005",
+      "created_at": "2025-11-19 22:12:34",
+      "invoice_date": "2025-11-19",
+      "customer_name": "Vikas 84",
+      "customer_phone": "8734824104",
+      "customer_address": ".",
+      "customer_gstin": "",
+      "items": [],
+      "subtotal": 0.0,
+      "discount": 0.0,
+      "tax": 0.0,
+      "total": 0.0,
+      "payment_mode": "CASH",
+      "payment_reference": "",
+      "notes": "",
+      "id": "5"
     }
   ],
-  "invoice_counter": 4,
+  "invoice_counter": 5,
   "expenses": [
     {
       "id": "1",

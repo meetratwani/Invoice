@@ -378,11 +378,26 @@ body {
 
   .table thead,
   .table tbody,
-  .table tr,
+.table tr,
   .table th,
   .table td {
     white-space: nowrap;
   }
+}
+
+.invoice-search-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-right: 0.5rem;
+}
+
+.invoice-search-form input[type="text"],
+.invoice-search-form input[type="date"] {
+  padding: 0.3rem 0.45rem;
+  border-radius: 4px;
+  border: 1px solid #d1d5db;
+  font-size: 0.85rem;
 }
 
 @media print {
