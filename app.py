@@ -10,7 +10,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, mak
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "change-this-secret-key")
 
-# --- Simple file-based storage (no external database) ---
+
 DATA_FILE = Path("data.json")
 
 
@@ -26,7 +26,7 @@ def _load_data():
 
 
 _data = _load_data()
-# Ensure expenses key exists for older data files
+
 if "expenses" not in _data:
     _data["expenses"] = []
 
@@ -43,7 +43,7 @@ def get_store_settings():
     settings = _data.get("store_settings")
     if settings:
         return settings
-    # Default values if nothing stored yet
+
     return {
         "store_name": "R Sanju Store",
         "address": "",
@@ -73,15 +73,14 @@ def generate_invoice_number() -> str:
 def invoice_list():
     store = get_store_settings()
 
-    # Optional search filters from query string
-    # Search by customer phone number instead of name
+    
     search_phone = (request.args.get("phone") or "").strip()
     search_date = (request.args.get("date") or "").strip()
 
     invoices = list(_data.get("invoices", []))
     invoices.sort(key=lambda inv: inv.get("created_at", ""), reverse=True)
 
-    # Filter by customer phone number (substring match)
+   
     phone_filter = search_phone
     if phone_filter:
         invoices = [
@@ -90,7 +89,7 @@ def invoice_list():
             if phone_filter in (inv.get("customer_phone") or "")
         ]
 
-    # Filter by invoice date (fall back to date part of created_at)
+    
     if search_date:
         def _get_invoice_date(inv):
             inv_date_str = inv.get("invoice_date") or inv.get("created_at", "").split(" ")[0]
@@ -214,7 +213,6 @@ def new_invoice():
             "notes": notes,
         }
 
-        # Generate a simple string id for the invoice
         invoices = _data.setdefault("invoices", [])
         new_id = str(len(invoices) + 1)
         invoice_data["id"] = new_id
@@ -275,7 +273,6 @@ def convert_credit_to_cash(invoice_id: str):
 
     invoice["payment_mode"] = "CASH"
 
-    # Append a note so you remember that this was converted from credit to cash
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     existing_notes = (invoice.get("notes") or "").strip()
     conversion_note = f"[Converted from CREDIT to CASH on {timestamp}]"
@@ -299,7 +296,7 @@ def download_invoice(invoice_id: str):
         flash("Invoice not found.", "error")
         return redirect(url_for("invoice_list"))
 
-    # Render the same invoice view HTML and send it as a downloadable file
+   
     html = render_template("invoice_view.html", store=store, invoice=invoice)
     response = make_response(html)
     filename = f"invoice-{invoice.get('invoice_number', invoice_id)}.html"

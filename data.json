@@ -4,7 +4,7 @@
     "address": "VILLA-53\r\nSAVALIYA SUN VILLA\r\nGIDC Naroda",
     "phone": "9879820035",
     "email": "meetratwani262@gmail.com",
-    "logo_url": ""
+    "logo_url": "https://www.airportschoolahm.in/wp-content/uploads/2023/07/NEW-Airport-School-logo-final-2020-21-1-1.png"
   },
   "invoices": [
     {
@@ -105,9 +105,52 @@
       "payment_reference": "ritu",
       "notes": "",
       "id": "5"
+    },
+    {
+      "invoice_number": "RS-2025-0007",
+      "created_at": "2025-11-21 19:35:25",
+      "invoice_date": "2025-11-21",
+      "customer_name": "Vikas 84",
+      "customer_phone": "",
+      "customer_address": ".",
+      "customer_gstin": "",
+      "items": [
+        {
+          "description": "S 22 Ultra",
+          "quantity": 1.0,
+          "unit_price": 1499.98,
+          "line_total": 1499.98
+        }
+      ],
+      "subtotal": 1499.98,
+      "discount": 0.0,
+      "tax": 0.0,
+      "total": 1499.98,
+      "payment_mode": "CREDIT",
+      "payment_reference": "ritu",
+      "notes": "",
+      "id": "5"
+    },
+    {
+      "invoice_number": "RS-2025-0008",
+      "created_at": "2025-11-21 19:36:56",
+      "invoice_date": "2025-11-21",
+      "customer_name": "Vikas 84",
+      "customer_phone": "8734824104",
+      "customer_address": ".",
+      "customer_gstin": "",
+      "items": [],
+      "subtotal": 0.0,
+      "discount": 1500.0,
+      "tax": 0.0,
+      "total": -1500.0,
+      "payment_mode": "CASH",
+      "payment_reference": "",
+      "notes": "",
+      "id": "6"
     }
   ],
-  "invoice_counter": 6,
+  "invoice_counter": 8,
   "expenses": [
     {
       "id": "1",
