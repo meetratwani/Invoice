@@ -273,22 +273,22 @@ def login():
                 print(f"Firebase auth error: {e}")
                 flash("Authentication failed. Please try again.", "error")
         else:
-            # Fallback to local mode (for development/testing)
-            email = request.form.get("email", "").strip()
-            password = request.form.get("password", "").strip()
-            
-            # Simple local auth - use email as user_id
-            if email and password:
-                # In local mode, accept any email/password combo
-                session["logged_in"] = True
-                session["user_id"] = email.replace("@", "_").replace(".", "_")
-                session["email"] = email
-                
-                next_url = request.args.get("next") or url_for("invoice_list")
-                flash(f"Logged in as {email} (local mode)", "success")
-                return redirect(next_url)
+            # Fallback only if configured securely (optional), but for now reject
+            if not FIREBASE_ENABLED:
+                flash("Firebase not configured. Secure login required.", "error")
             else:
-                flash("Please provide email and password", "error")
+                flash("Invalid authentication method.", "error")
+            
+            # Remove insecure "accept all" logic
+            # session["logged_in"] = True ... -> REMOVED
+            pass
+            
+            # Return to login page logic (return redirect(url_for('login')) effectively via fallthrough or explicit)
+            # Actually the function continues... allow fallthrough to render template?
+            # No, if POST, we should return or redirect.
+            
+            return redirect(url_for("login"))
+
 
     # Get store settings without requiring login
     try:

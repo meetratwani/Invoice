@@ -9,3 +9,5 @@ venv/
 firebase_credentials.json
 uploads/
 .DS_Store
+
+login.json
