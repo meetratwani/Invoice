@@ -24,18 +24,39 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "change-this-secret-key")
 
 # Initialize Firebase Admin SDK
 try:
-    cred_path = Path("firebase_credentials.json")
-    if cred_path.exists() and cred_path.stat().st_size > 10:  # Check if file has content
-        cred = credentials.Certificate(str(cred_path))
+    # Check for environment variable first (for Render/Cloud)
+    firebase_creds_env = os.environ.get("FIREBASE_CREDENTIALS")
+    cred = None
+
+    if firebase_creds_env:
+        # Load from environment variable string
+        try:
+            # Handle case where it might be a raw string or escaped JSON
+            cred_dict = json.loads(firebase_creds_env)
+            cred = credentials.Certificate(cred_dict)
+            print("[OK] Firebase initialized from environment variable")
+        except json.JSONDecodeError as e:
+            print(f"[WARN] Failed to parse FIREBASE_CREDENTIALS: {e}")
+
+    # Fallback to local file if env var didn't work
+    if not cred:
+        cred_path = Path("firebase_credentials.json")
+        if cred_path.exists() and cred_path.stat().st_size > 10:
+            cred = credentials.Certificate(str(cred_path))
+            print("[OK] Firebase initialized from local file")
+        else:
+            print("[WARN] Firebase credentials file not found")
+
+    if cred:
         firebase_admin.initialize_app(cred)
         FIREBASE_ENABLED = True
-        print("✓ Firebase initialized successfully")
     else:
         FIREBASE_ENABLED = False
-        print("⚠ Firebase credentials not found - running in local mode")
+        print("[WARN] Firebase not initialized - running in local mode")
+
 except Exception as e:
     FIREBASE_ENABLED = False
-    print(f"⚠ Firebase initialization failed: {e} - running in local mode")
+    print(f"[WARN] Firebase initialization failed: {e} - running in local mode")
 
 def login_required(f):
     @wraps(f)
