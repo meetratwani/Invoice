@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if product %}Edit Product{% else %}New Product{% endif %} - R Sanju Store{% endblock %}
+
+{% block content %}
+<section class="page">
+  <div class="page-header">
+    <h2>{% if product %}Edit Product{% else %}New Product{% endif %}</h2>
+    <a href="{{ url_for('products_list') }}" class="btn">Back to Products</a>
+  </div>
+
+  <form method="post" class="form">
+    <div class="form-grid">
+      <div>
+        <h3>Basic Info</h3>
+        <label>
+          Name
+          <input type="text" name="name" value="{{ product.name if product else '' }}" required />
+        </label>
+        <label>
+          Description
+          <textarea name="description" rows="3">{{ product.description if product else '' }}</textarea>
+        </label>
+        <label>
+          SKU / Code
+          <input type="text" name="sku" value="{{ product.sku if product else '' }}" />
+        </label>
+        <label>
+          Barcode
+          <div style="display:flex; gap:0.5rem; align-items:center;">
+            <input type="text" name="barcode" id="barcode-input" value="{{ product.barcode if product else '' }}" style="flex:1;" />
+            <button type="button" class="btn small" id="generate-barcode-btn">Generate</button>
+          </div>
+        </label>
+        <small>Barcode can be scanned on invoice screen to auto-select this product.</small>
+      </div>
+
+      <div>
+        <h3>Pricing & Stock</h3>
+        <label>
+          Unit Price (selling)
+          <input type="number" step="0.01" min="0" name="unit_price" value="{{ product.unit_price if product else '0' }}" />
+        </label>
+        <label>
+          Cost Price
+          <input type="number" step="0.01" min="0" name="cost_price" value="{{ product.cost_price if product else '0' }}" />
+        </label>
+        <label>
+          Current Stock Quantity
+          <input type="number" step="0.01" min="0" name="stock_quantity" value="{{ product.stock_quantity if product else '0' }}" />
+        </label>
+        <label>
+          Minimum Stock Level
+          <input type="number" step="0.01" min="0" name="min_stock_level" value="{{ product.min_stock_level if product else '0' }}" />
+        </label>
+      </div>
+    </div>
+
+    <div class="form-grid">
+      <div>
+        <h3>Classification</h3>
+        <label>
+          Category
+          <input type="text" name="category" value="{{ product.category if product else '' }}" />
+        </label>
+        <label>
+          Brand
+          <input type="text" name="brand" value="{{ product.brand if product else '' }}" />
+        </label>
+      </div>
+
+      <div>
+        <h3>Barcode Preview</h3>
+        <svg id="barcode-preview"></svg>
+        <p style="font-size: 0.85rem; color: #666;">If JsBarcode is loaded, a live barcode preview will appear here.</p>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn primary">Save</button>
+      <a href="{{ url_for('products_list') }}" class="btn">Cancel</a>
+    </div>
+  </form>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+<script>
+  (function () {
+    if (!window.JsBarcode) return;
+    const input = document.getElementById('barcode-input');
+    const svg = document.getElementById('barcode-preview');
+    const skuInput = document.querySelector('input[name="sku"]');
+    const genBtn = document.getElementById('generate-barcode-btn');
+
+    function render() {
+      const value = (input.value || '').trim();
+      if (!value) {
+        svg.innerHTML = '';
+        return;
+      }
+      try {
+        JsBarcode(svg, value, { format: 'CODE128', displayValue: true, fontSize: 14, height: 60 });
+      } catch (e) {
+        svg.innerHTML = '';
+      }
+    }
+
+    if (genBtn) {
+      genBtn.addEventListener('click', () => {
+        const existing = (input.value || '').trim();
+        if (existing) return;
+        const sku = (skuInput && skuInput.value ? skuInput.value : '').trim();
+        // CODE128 supports any string.
+        input.value = sku || ('RS-' + Date.now());
+        render();
+      });
+    }
+
+    input.addEventListener('input', render);
+    render();
+  })();
+</script>
+{% endblock %}

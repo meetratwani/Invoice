@@ -8,7 +8,7 @@
     <h2>Store Settings</h2>
   </div>
 
-  <form method="post" class="form">
+  <form method="post" class="form" enctype="multipart/form-data">
     <label>
       Store Name
       <input type="text" name="store_name" value="{{ store.store_name or 'R Sanju Store' }}" required />
@@ -26,8 +26,20 @@
       <input type="email" name="email" value="{{ store.email }}" />
     </label>
     <label>
-      Logo URL (optional)
-      <input type="url" name="logo_url" value="{{ store.logo_url }}" />
+      Store Logo
+      {% if store.logo_url %}
+      <div style="margin-bottom: 0.5rem;">
+        <img src="{{ store.logo_url }}" alt="Store Logo"
+          style="max-height: 100px; width: auto; border: 1px solid #ddd; padding: 4px;">
+      </div>
+      {% endif %}
+      <div style="margin-bottom: 0.5rem;">
+        <span style="font-size: 0.9rem; color: #555;">Upload new logo:</span>
+        <input type="file" name="logo_file" accept="image/*"
+          style="border: 1px solid #ccc; padding: 0.5rem; width: 100%; box-sizing: border-box;" />
+      </div>
+      <span style="font-size: 0.9rem; color: #555;">Or use external URL:</span>
+      <input type="url" name="logo_url" value="{{ store.logo_url }}" placeholder="https://..." />
     </label>
 
     <div class="form-actions">

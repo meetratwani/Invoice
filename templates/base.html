@@ -1,50 +1,59 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{% block title %}R Sanju Store Invoices{% endblock %}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
-  </head>
-  <body>
-    <header class="app-header">
-      <div class="app-header-left">
-        <div class="store-logo">
-          {% if store.logo_url %}
-            <img src="{{ store.logo_url }}" alt="{{ store.store_name }}" />
-          {% endif %}
-        </div>
-        <div>
-          <h1 class="store-name">{{ store.store_name or 'R Sanju Store' }}</h1>
-          {% if store.address %}
-            <p class="store-address">{{ store.address }}</p>
-          {% endif %}
-          {% if store.phone %}
-            <p class="store-contact">Phone: {{ store.phone }}</p>
-          {% endif %}
-        </div>
-      </div>
-      <nav class="app-nav">
-        <a href="{{ url_for('invoice_list') }}">Invoices</a>
-        <a href="{{ url_for('new_invoice') }}">New Invoice</a>
-        <a href="{{ url_for('reports') }}">Reports</a>
-        <a href="{{ url_for('expenses') }}">Expenses</a>
-        <a href="{{ url_for('settings') }}">Settings</a>
-      </nav>
-    </header>
 
-    <main class="app-main">
-      {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-          <div class="flash-container">
-            {% for category, msg in messages %}
-              <div class="flash flash-{{ category }}">{{ msg }}</div>
-            {% endfor %}
-          </div>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}R Sanju Store Invoices{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+
+<body>
+  <header class="app-header">
+    <div class="app-header-left">
+      <div class="store-logo">
+        {% if store.logo_url %}
+        <img src="{{ store.logo_url }}" alt="{{ store.store_name }}" />
         {% endif %}
-      {% endwith %}
+      </div>
+      <div>
+        <h1 class="store-name">{{ store.store_name or 'R Sanju Store' }}</h1>
+        {% if store.address %}
+        <p class="store-address">{{ store.address }}</p>
+        {% endif %}
+        {% if store.phone %}
+        <p class="store-contact">Phone: {{ store.phone }}</p>
+        {% endif %}
+      </div>
+    </div>
+    <nav class="app-nav">
+      <a href="{{ url_for('invoice_list') }}">Invoices</a>
+      <a href="{{ url_for('new_invoice') }}">New Invoice</a>
+      <a href="{{ url_for('products_list') }}">Products</a>
+      <a href="{{ url_for('inventory_dashboard') }}">Inventory</a>
+      <a href="{{ url_for('reports') }}">Reports</a>
+      <a href="{{ url_for('expenses') }}">Expenses</a>
+      <a href="{{ url_for('settings') }}">Settings</a>
+      {% if session.get('logged_in') %}
+      <span style="color:#6b7280; padding: 0 0.5rem;">{{ session.get('email', 'User') }}</span>
+      <a href="{{ url_for('logout') }}" style="color:#ef4444;">Logout</a>
+      {% endif %}
+    </nav>
+  </header>
 
-      {% block content %}{% endblock %}
-    </main>
-  </body>
+  <main class="app-main">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="flash-container">
+      {% for category, msg in messages %}
+      <div class="flash flash-{{ category }}">{{ msg }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+</body>
+
 </html>

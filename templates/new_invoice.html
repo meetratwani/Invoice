@@ -4,120 +4,225 @@
 
 {% block content %}
 <section class="page">
-  <div class="page-header">
-    <h2>New Invoice</h2>
+  <div class="page-header" style="border-bottom: 2px solid #333; padding-bottom: 1rem; margin-bottom: 2rem;">
+    <h2 style="color: #333; margin: 0;">Create New Invoice</h2>
   </div>
 
   <form method="post" class="form" id="invoice-form">
-    <div class="form-grid">
-      <div>
-        <h3>Invoice Details</h3>
-        <label>
+
+    <!-- Quick Add Section - Basic Black & White -->
+    <div style="background: #f4f4f4; border: 1px solid #ddd; padding: 1.5rem; margin-bottom: 2rem; border-radius: 4px;">
+      <h3 style="color: #333; margin: 0 0 1rem 0; font-size: 1.1rem; text-transform: uppercase; letter-spacing: 1px;">
+        Quick Add Products</h3>
+      <div style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+        <label style="flex: 1; min-width: 250px; color: #333;">
+          <strong style="display: block; margin-bottom: 0.5rem;">Scan or Type Product Code</strong>
+          <input type="text" id="quick-add-input" placeholder="Barcode, SKU, or Product Name + Enter"
+            style="width: 100%; border: 1px solid #333; background: white; font-size: 1rem; padding: 0.75rem; border-radius: 0;"
+            autofocus autocomplete="off" />
+          <small style="color: #666; display: block; margin-top: 0.5rem;">
+            Use USB barcode scanner or type and press Enter
+          </small>
+        </label>
+        <button type="button" class="btn" id="btn-product-picker"
+          style="background: #333; color: white; font-weight: normal; padding: 0.75rem 1.5rem; border: 1px solid #333; border-radius: 0;">
+          Browse Products
+        </button>
+        <button type="button" class="btn" id="btn-camera-scan"
+          style="background: white; color: #333; border: 1px solid #333; padding: 0.75rem 1.5rem; border-radius: 0;">
+          Camera Scan (Optional)
+        </button>
+      </div>
+
+      <!-- Inline Product Picker (Hidden by default) -->
+      <div id="product-picker-modal" hidden style="border: 1px solid #333; margin-top: 1rem; background: white;">
+        <div
+          style="padding: 1rem; display: flex; justify-content: space-between; align-items: center; background: #f4f4f4; border-bottom: 1px solid #ddd;">
+          <h3 style="margin:0; font-size: 1rem; color: #333; text-transform: uppercase;">Select Product</h3>
+          <button type="button" class="btn small" id="picker-close"
+            style="background: #333; color: white; border: none; cursor: pointer; padding: 0.25rem 0.75rem; border-radius: 0;">
+            Hide
+          </button>
+        </div>
+        <div style="padding: 1rem; border-bottom: 1px solid #eee;">
+          <input type="text" id="picker-search" placeholder="Search products..."
+            style="width: 100%; padding: 0.75rem; font-size: 1rem; border: 1px solid #ccc; border-radius: 0;" />
+        </div>
+        <div style="max-height: 400px; overflow-y: auto; padding: 1rem;">
+          <div id="picker-grid"
+            style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem;">
+            <!-- Products will be injected here -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Inline Camera Scanner (Hidden by default) -->
+      <div id="barcode-scanner-modal" hidden style="border: 1px solid #333; margin-top: 1rem; background: white;">
+        <div
+          style="padding: 1rem; display: flex; justify-content: space-between; align-items: center; background: #f4f4f4; border-bottom: 1px solid #ddd;">
+          <h3 id="barcode-scanner-title" style="margin:0; font-size: 1rem; color: #333; text-transform: uppercase;">Scan
+            Barcode</h3>
+          <button type="button" class="btn small" id="barcode-scan-close"
+            style="background: #333; color: white; border: none; cursor: pointer; padding: 0.25rem 0.75rem; border-radius: 0;">
+            Hide
+          </button>
+        </div>
+        <div style="padding: 1.5rem;">
+          <div id="barcode-reader" class="barcode-reader"
+            style="width: 100%; max-width: 500px; margin: 0 auto; background: #000;"></div>
+          <div class="barcode-scan-status" id="barcode-scan-status"
+            style="text-align: center; padding: 1rem; color: #333;">
+            Camera ready.
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Invoice & Customer Details -->
+    <div
+      style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; margin-bottom: 2rem;">
+
+      <!-- Invoice Details -->
+      <div style="border: 1px solid #ddd; padding: 1.5rem; border-radius: 4px;">
+        <h3
+          style="margin: 0 0 1rem 0; color: #333; font-size: 1rem; border-bottom: 1px solid #ddd; padding-bottom: 0.5rem; font-weight: 600;">
+          INVOICE DETAILS
+        </h3>
+        <label style="display: block; margin-bottom: 1rem;">
           Invoice Date
-          <input type="date" name="invoice_date" value="{{ today }}" required />
+          <input type="date" name="invoice_date" value="{{ today }}" required
+            style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 0; margin-top: 0.3rem;" />
         </label>
       </div>
 
-      <div>
-        <h3>Customer Details</h3>
-        <label>
-          Name
-          <input type="text" name="customer_name" placeholder="Customer name" />
-        </label>
-        <label>
-          Phone
-          <input type="text" name="customer_phone" placeholder="Phone number" />
-        </label>
-        <label>
-          Address
-          <textarea name="customer_address" rows="2" placeholder="Customer address"></textarea>
-        </label>
-        <label>
-          GSTIN (optional)
-          <input type="text" name="customer_gstin" placeholder="GST number" />
-        </label>
+      <!-- Customer Details -->
+      <div style="border: 1px solid #ddd; padding: 1.5rem; border-radius: 4px;">
+        <h3
+          style="margin: 0 0 1rem 0; color: #333; font-size: 1rem; border-bottom: 1px solid #ddd; padding-bottom: 0.5rem; font-weight: 600;">
+          CUSTOMER DETAILS
+        </h3>
+        <div style="display: grid; gap: 1rem;">
+          <input type="text" name="customer_name" placeholder="Customer Name"
+            style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 0;" />
+          <input type="text" name="customer_phone" placeholder="Phone Number"
+            style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 0;" />
+          <textarea name="customer_address" rows="2" placeholder="Address"
+            style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 0;"></textarea>
+          <input type="text" name="customer_gstin" placeholder="GSTIN (Optional)"
+            style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 0;" />
+        </div>
       </div>
     </div>
 
-    <h3>Items</h3>
-    <table class="table items-table" id="items-table">
-      <thead>
-        <tr>
-          <th style="width: 50%">Description</th>
-          <th>Qty</th>
-          <th>Unit Price</th>
-          <th>Line Total</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody id="items-body">
-        <tr>
-          <td>
-            <input type="text" name="item_description[]" placeholder="Item description" />
-          </td>
-          <td>
-            <input type="number" name="item_quantity[]" min="0" step="1" value="1" />
-          </td>
-          <td>
-            <input type="number" name="item_unit_price[]" min="0" step="0.01" value="0" />
-          </td>
-          <td class="line-total">0.00</td>
-          <td>
-            <button type="button" class="btn small danger remove-row">X</button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-    <button type="button" class="btn" id="add-item">+ Add Item</button>
+    <!-- Items Table -->
+    <div style="border: 1px solid #ddd; padding: 1.5rem; margin-bottom: 2rem; border-radius: 4px;">
+      <h3
+        style="margin: 0 0 1rem 0; color: #333; font-size: 1rem; border-bottom: 1px solid #ddd; padding-bottom: 0.5rem; font-weight: 600;">
+        ITEMS
+      </h3>
+      <div style="overflow-x: auto;">
+        <table class="table items-table" id="items-table"
+          style="width: 100%; min-width: 600px; border-collapse: collapse;">
+          <thead>
+            <tr style="background: #f4f4f4; border-bottom: 1px solid #ddd;">
+              <th style="padding: 0.75rem; text-align: left; color: #333;">Product</th>
+              <th style="padding: 0.75rem; text-align: center; color: #333; width: 100px;">Qty</th>
+              <th style="padding: 0.75rem; text-align: right; color: #333; width: 120px;">Price</th>
+              <th style="padding: 0.75rem; text-align: right; color: #333; width: 120px;">Total</th>
+              <th style="padding: 0.75rem; width: 60px;"></th>
+            </tr>
+          </thead>
+          <tbody id="items-body">
+            <tr id="empty-state">
+              <td colspan="5" style="text-align: center; padding: 2rem; color: #888;">
+                No items added. Use Quick Add above.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="margin-top: 1rem;">
+        <button type="button" class="btn" id="add-item"
+          style="background: white; color: #333; border: 1px solid #ccc; padding: 0.5rem 1rem; border-radius: 0;">
+          + Add Manual Item
+        </button>
+      </div>
+    </div>
 
-    <div class="totals-grid">
-      <div>
-        <h3>Payment</h3>
-        <label>
-          Payment Mode
-          <select name="payment_mode" required>
-            <option value="">Select mode</option>
+    <!-- Payment & Totals -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem;">
+
+      <!-- Payment Details -->
+      <div style="border: 1px solid #ddd; padding: 1.5rem; border-radius: 4px;">
+        <h3
+          style="margin: 0 0 1rem 0; color: #333; font-size: 1rem; border-bottom: 1px solid #ddd; padding-bottom: 0.5rem; font-weight: 600;">
+          PAYMENT
+        </h3>
+        <div style="display: grid; gap: 1rem;">
+          <select name="payment_mode" required
+            style="width: 100%; padding: 0.75rem; border: 1px solid #ccc; border-radius: 0; background: white;">
+            <option value="">Select Payment Mode</option>
             <option value="CASH">Cash</option>
             <option value="UPI">UPI</option>
+            <option value="CARD">Card</option>
             <option value="CREDIT">Credit</option>
           </select>
-        </label>
-        <label>
-          Payment Reference (UPI txn ID, card last 4 digits, etc.)
-          <input type="text" name="payment_reference" />
-        </label>
-        <label>
-          Notes
-          <textarea name="notes" rows="2" placeholder="Any extra info (e.g. return policy)"></textarea>
-        </label>
+          <input type="text" name="payment_reference" placeholder="Payment Reference / ID"
+            style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 0;" />
+          <textarea name="notes" rows="2" placeholder="Notes"
+            style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 0;"></textarea>
+        </div>
       </div>
 
-      <div class="totals-box">
-        <div class="totals-row">
-          <span>Subtotal:</span>
-          <span id="subtotal-display">0.00</span>
-        </div>
-        <div class="totals-row">
-          <span>Discount:</span>
-          <input type="number" name="discount" id="discount" min="0" step="0.01" value="0" />
-        </div>
-        <div class="totals-row">
-          <span>Tax:</span>
-          <input type="number" name="tax" id="tax" min="0" step="0.01" value="0" />
-        </div>
-        <div class="totals-row grand-total">
-          <span>Total:</span>
-          <span id="total-display">0.00</span>
+      <!-- Totals -->
+      <div style="background: #f9f9f9; border: 1px solid #ddd; padding: 1.5rem; border-radius: 4px;">
+        <h3
+          style="margin: 0 0 1rem 0; color: #333; font-size: 1rem; border-bottom: 1px solid #ddd; padding-bottom: 0.5rem; font-weight: 600;">
+          TOTAL SUMMARY
+        </h3>
+        <div style="display: flex; flex-direction: column; gap: 1rem;">
+          <div style="display: flex; justify-content: space-between; color: #555;">
+            <span>Subtotal:</span>
+            <span id="subtotal-display" style="font-weight: 600; color: #333;">0.00</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="color: #555;">Discount:</span>
+            <input type="number" name="discount" id="discount" min="0" step="0.01" value="0"
+              style="width: 100px; text-align: right; padding: 0.25rem; border: 1px solid #ccc; border-radius: 0;" />
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="color: #555;">Tax:</span>
+            <input type="number" name="tax" id="tax" min="0" step="0.01" value="0"
+              style="width: 100px; text-align: right; padding: 0.25rem; border: 1px solid #ccc; border-radius: 0;" />
+          </div>
+          <div
+            style="display: flex; justify-content: space-between; align-items: center; padding-top: 1rem; border-top: 2px solid #333; margin-top: 0.5rem;">
+            <span style="color: #333; font-weight: 700; font-size: 1.2rem;">TOTAL:</span>
+            <span id="total-display" style="color: #333; font-weight: 700; font-size: 1.5rem;">0.00</span>
+          </div>
         </div>
       </div>
     </div>
 
-    <div class="form-actions">
-      <button type="submit" class="btn primary">Save Invoice</button>
-      <a href="{{ url_for('invoice_list') }}" class="btn">Cancel</a>
+    <!-- Action Buttons -->
+    <div class="form-actions" style="display: flex; justify-content: flex-end; gap: 1rem;">
+      <a href="{{ url_for('invoice_list') }}" class="btn"
+        style="padding: 1rem 2rem; background: #eee; color: #333; text-decoration: none; border: 1px solid #ccc; border-radius: 0;">
+        Cancel
+      </a>
+      <button type="submit" class="btn primary"
+        style="padding: 1rem 3rem; font-size: 1.1rem; background: #333; color: white; border: none; border-radius: 0; cursor: pointer;">
+        Save Invoice
+      </button>
     </div>
   </form>
+
 </section>
 
+<script>
+  window.INVOICE_PRODUCTS = {{ products | tojson | safe }};
+</script>
+<script src="https://unpkg.com/html5-qrcode"></script>
 <script src="{{ url_for('static', filename='js/new_invoice.js') }}"></script>
 {% endblock %}

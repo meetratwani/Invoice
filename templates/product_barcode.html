@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+
+{% block title %}Barcode - {{ product.name }}{% endblock %}
+
+{% block content %}
+<section class="page">
+  <div class="page-header">
+    <h2>Barcode</h2>
+    <div>
+      <a href="{{ url_for('products_list') }}" class="btn">Back</a>
+      <button type="button" class="btn primary" onclick="window.print()">Print</button>
+    </div>
+  </div>
+
+  <div style="display:flex; gap:1rem; flex-wrap:wrap; align-items:flex-start;">
+    <div style="flex: 1 1 320px;">
+      <h3 style="margin-top:0;">{{ product.name }}</h3>
+      <p style="margin:0.25rem 0; color:#6b7280;">SKU: {{ product.sku or '-' }}</p>
+      <p style="margin:0.25rem 0; color:#6b7280;">Barcode: <strong>{{ product.barcode or '-' }}</strong></p>
+      <p style="margin-top:0.75rem; color:#6b7280;">Cut/print this label and stick it on the product. Then scan it from the invoice screen.</p>
+    </div>
+
+    <div style="flex: 1 1 320px; border:1px dashed #d1d5db; padding:1rem; border-radius:8px; background:#fff;">
+      <div style="text-align:center; font-weight:600; margin-bottom:0.5rem;">{{ store.store_name }}</div>
+      <div style="text-align:center; margin-bottom:0.35rem;">{{ product.name }}</div>
+      <svg id="barcode-svg"></svg>
+      <div style="text-align:center; margin-top:0.35rem; font-variant-numeric: tabular-nums;">{{ product.barcode }}</div>
+    </div>
+  </div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+<script>
+  (function () {
+    if (!window.JsBarcode) return;
+    const value = "{{ (product.barcode or '')|e }}";
+    const svg = document.getElementById('barcode-svg');
+    if (!value || !svg) return;
+    try {
+      JsBarcode(svg, value, { format: 'CODE128', displayValue: false, fontSize: 14, height: 80, margin: 8 });
+    } catch (e) {
+      svg.innerHTML = '';
+    }
+  })();
+</script>
+{% endblock %}
