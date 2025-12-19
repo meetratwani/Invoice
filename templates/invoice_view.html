@@ -16,19 +16,19 @@
   <section class="store-details">
     <div class="store-header">
       {% if store.logo_url %}
-        <img src="{{ store.logo_url }}" alt="{{ store.store_name or 'Store Logo' }}" class="store-logo" />
+      <img src="{{ store.logo_url }}" alt="{{ store.store_name or 'Store Logo' }}" class="store-logo" />
       {% endif %}
       <div class="store-header-text">
         <h3>{{ store.store_name or 'R Sanju Store' }}</h3>
         {% if store.address %}
-          <p>{{ store.address }}</p>
+        <p>{{ store.address }}</p>
         {% endif %}
         {% if store.phone or store.email %}
-          <p>
-            {% if store.phone %}Phone / WhatsApp: {{ store.phone }}{% endif %}
-            {% if store.phone and store.email %} | {% endif %}
-            {% if store.email %}Email: {{ store.email }}{% endif %}
-          </p>
+        <p>
+          {% if store.phone %}Phone / WhatsApp: {{ store.phone }}{% endif %}
+          {% if store.phone and store.email %} | {% endif %}
+          {% if store.email %}Email: {{ store.email }}{% endif %}
+        </p>
         {% endif %}
       </div>
     </div>
@@ -60,12 +60,12 @@
     </thead>
     <tbody>
       {% for item in invoice['items'] %}
-        <tr>
-          <td>{{ item.description }}</td>
-          <td>{{ item.quantity }}</td>
-          <td>{{ '%.2f'|format(item.unit_price) }}</td>
-          <td>{{ '%.2f'|format(item.line_total) }}</td>
-        </tr>
+      <tr>
+        <td>{{ item.description }}</td>
+        <td>{{ item.quantity }}</td>
+        <td>{{ '%.2f'|format(item.unit_price) }}</td>
+        <td>{{ '%.2f'|format(item.line_total) }}</td>
+      </tr>
       {% endfor %}
     </tbody>
   </table>
@@ -76,25 +76,26 @@
       <p>
         <strong>Payment Mode:</strong>
         {% if invoice.payment_mode %}
-          <span class="badge badge-payment-{{ (invoice.payment_mode or 'OTHER')|lower }}">
-            {{ invoice.payment_mode }}
-          </span>
+        <span class="badge badge-payment-{{ (invoice.payment_mode or 'OTHER')|lower }}">
+          {{ invoice.payment_mode }}
+        </span>
         {% else %}
-          -
+        -
         {% endif %}
       </p>
 
       {% if invoice.payment_mode == 'CREDIT' %}
-        <form method="post" action="{{ url_for('convert_credit_to_cash', invoice_id=invoice.id) }}" onsubmit="return confirm('Convert this invoice from CREDIT to CASH?');">
-          <button type="submit" class="btn small">Convert CREDIT to CASH</button>
-        </form>
+      <form method="post" action="{{ url_for('convert_credit_to_cash', invoice_id=invoice.id) }}"
+        onsubmit="return confirm('Convert this invoice from CREDIT to CASH?');">
+        <button type="submit" class="btn small">Convert CREDIT to CASH</button>
+      </form>
       {% endif %}
 
       {% if invoice.payment_reference %}
-        <p><strong>Reference:</strong> {{ invoice.payment_reference }}</p>
+      <p><strong>Reference:</strong> {{ invoice.payment_reference }}</p>
       {% endif %}
       {% if invoice.notes %}
-        <p><strong>Notes:</strong> {{ invoice.notes }}</p>
+      <p><strong>Notes:</strong> {{ invoice.notes }}</p>
       {% endif %}
     </div>
 
@@ -120,6 +121,7 @@
 
   <footer class="invoice-footer">
     <p>Thank you for shopping at {{ store.store_name or 'R Sanju Store' }}.</p>
+    <p class="powered-by">Powered by BillKaro</p>
   </footer>
 </section>
 {% endblock %}

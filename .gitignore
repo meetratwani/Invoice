@@ -13,3 +13,12 @@ uploads/
 login.json
 
 data.json
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+app.db
+migrations/versions/*.py
+!migrations/versions/.gitkeep
+

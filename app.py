@@ -1,26 +1,39 @@
 import os
-from datetime import datetime, date
+from datetime import datetime, date, timezone, timedelta
 import json
+
+# IST timezone (UTC+5:30)
+IST = timezone(timedelta(hours=5, minutes=30))
+
+def now_ist():
+    """Get current datetime in IST timezone."""
+    return datetime.now(IST)
 from pathlib import Path
 import csv
-from io import StringIO
+from io import StringIO, BytesIO
 from functools import wraps
 from werkzeug.utils import secure_filename
+from dotenv import load_dotenv
 
-from flask import Flask, render_template, request, redirect, url_for, flash, make_response, session, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, flash, make_response, session, send_file
 import firebase_admin
 from firebase_admin import credentials, auth
 
+# Load environment variables
+load_dotenv()
+
+# Import database and models
+from models import db, User, StoreSettings, Product, Supplier, Invoice, InvoiceItem, Expense, StockTransaction
+from config import config
+
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "change-this-secret-key")
 
-UPLOAD_FOLDER = Path(__file__).parent / "uploads"
-UPLOAD_FOLDER.mkdir(exist_ok=True)
+# Load configuration
+env = os.environ.get('FLASK_ENV', 'development')
+app.config.from_object(config[env])
 
-from firebase_admin import credentials, auth
-
-app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "change-this-secret-key")
+# Initialize database
+db.init_app(app)
 
 # Initialize Firebase Admin SDK
 try:
@@ -58,6 +71,9 @@ except Exception as e:
     FIREBASE_ENABLED = False
     print(f"[WARN] Firebase initialization failed: {e} - running in local mode")
 
+
+# ---------- Authentication helpers ----------
+
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -66,212 +82,187 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+
 def get_current_user_id():
     """Get the current logged-in user's ID from session."""
     return session.get("user_id", "default_user")
 
-DATA_FILE = Path("data.json")
 
-def _load_data():
-    if DATA_FILE.exists():
-        try:
-            with DATA_FILE.open("r", encoding="utf-8") as f:
-                data = json.load(f)
-                # Migrate old structure to new multi-user structure
-                if "users" not in data:
-                    print("📦 Migrating data to multi-user structure...")
-                    default_user_id = "default_user"
-                    data["users"] = {
-                        default_user_id: {
-                            "store_settings": data.get("store_settings"),
-                            "invoices": data.get("invoices", []),
-                            "products": data.get("products", []),
-                            "expenses": data.get("expenses", []),
-                            "suppliers": data.get("suppliers", []),
-                            "stock_transactions": data.get("stock_transactions", []),
-                            "purchase_orders": data.get("purchase_orders", []),
-                            "invoice_counter": data.get("invoice_counter", 0)
-                        }
-                    }
-                    # Remove old keys
-                    for key in ['store_settings', 'invoices', 'products', 'expenses', 
-                                'suppliers', 'stock_transactions', 'purchase_orders', 'invoice_counter']:
-                        data.pop(key, None)
-                    print("✓ Migration complete")
-                return data
-        except Exception as e:
-            print(f"Error loading data: {e}")
-            pass
-    return {"users": {}}
+def get_or_create_user(user_id: str, email: str = None) -> User:
+    """Get existing user or create new one."""
+    user = User.query.get(user_id)
+    if not user:
+        user = User(id=user_id, email=email or f"{user_id}@example.com")
+        db.session.add(user)
+        db.session.commit()
+    return user
 
-_data = _load_data()
 
-def _save_data() -> None:
-    """Save data to JSON file."""
-    with DATA_FILE.open("w", encoding="utf-8") as f:
-        json.dump(_data, f, ensure_ascii=False, indent=2)
+# ---------- Store settings helpers ----------
 
-def _get_user_data(user_id: str = None) -> dict:
-    """Get or create user data structure for a specific user."""
-    if user_id is None:
-        user_id = get_current_user_id()
+def get_store_settings() -> dict:
+    """Get store settings for current user."""
+    user_id = get_current_user_id()
+    user = get_or_create_user(user_id)
     
-    if user_id not in _data["users"]:
-        _data["users"][user_id] = {
-            "store_settings": None,
-            "invoices": [],
-            "products": [],
-            "expenses": [],
-            "suppliers": [],
-            "stock_transactions": [],
-            "purchase_orders": [],
-            "invoice_counter": 0
-        }
-        _save_data()
+    settings = StoreSettings.query.filter_by(user_id=user_id).first()
     
-    return _data["users"][user_id]
-
-
-# ---------- Inventory / product helpers ----------
-
-def _next_id(prefix: str, seq: list[dict]) -> str:
-    """Generate a simple incremental string id like 'p1', 'p2' based on list length.
-
-    This keeps things stable enough for a JSON-file-based app.
-    """
-    return f"{prefix}{len(seq) + 1}"
-
-
-def get_products() -> list[dict]:
-    user_data = _get_user_data()
-    return user_data.setdefault("products", [])
-
-
-def find_product(product_id: str) -> dict | None:
-    for p in get_products():
-        if p.get("id") == product_id:
-            return p
-    return None
-
-
-def create_product(data: dict) -> dict:
-    products = get_products()
-    new_id = _next_id("p", products)
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    sku = data.get("sku", "").strip() or f"SKU-{new_id}"
-    barcode = data.get("barcode", "").strip() or sku
-
-    product = {
-        "id": new_id,
-        "name": data.get("name", "").strip(),
-        "description": data.get("description", "").strip(),
-        "sku": sku,
-        "barcode": barcode,
-        "category": data.get("category", "").strip(),
-        "brand": data.get("brand", "").strip(),
-        "unit_price": float(data.get("unit_price") or 0),
-        "cost_price": float(data.get("cost_price") or 0),
-        "stock_quantity": float(data.get("stock_quantity") or 0),
-        "min_stock_level": float(data.get("min_stock_level") or 0),
-        "supplier_id": data.get("supplier_id") or None,
-        "created_at": now,
-        "updated_at": now,
-    }
-    products.append(product)
-    _save_data()
-    return product
-
-
-def update_product(product: dict, data: dict) -> None:
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    # Keep existing codes if user leaves them empty.
-    sku = (data.get("sku", "") or "").strip() or (product.get("sku") or "").strip() or f"SKU-{product.get('id')}"
-    barcode_in = (data.get("barcode", "") or "").strip()
-    barcode = barcode_in or (product.get("barcode") or "").strip() or sku
-
-    product.update(
-        {
-            "name": data.get("name", "").strip(),
-            "description": data.get("description", "").strip(),
-            "sku": sku,
-            "barcode": barcode,
-            "category": data.get("category", "").strip(),
-            "brand": data.get("brand", "").strip(),
-            "unit_price": float(data.get("unit_price") or 0),
-            "cost_price": float(data.get("cost_price") or 0),
-            "stock_quantity": float(data.get("stock_quantity") or 0),
-            "min_stock_level": float(data.get("min_stock_level") or 0),
-            "supplier_id": data.get("supplier_id") or None,
-            "updated_at": now,
-        }
-    )
-    _save_data()
-
-
-def record_stock_transaction(product_id: str, tx_type: str, quantity: float, reference_id: str = "", notes: str = "") -> None:
-    user_data = _get_user_data()
-    tx_list = user_data.setdefault("stock_transactions", [])
-    new_id = _next_id("t", tx_list)
-    tx_list.append(
-        {
-            "id": new_id,
-            "product_id": product_id,
-            "transaction_type": tx_type,
-            "quantity": float(quantity or 0),
-            "reference_id": reference_id,
-            "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "notes": notes,
-        }
-    )
-
-
-def adjust_stock(product_id: str, delta: float, tx_type: str, reference_id: str = "", notes: str = "") -> None:
-    product = find_product(product_id)
-    if not product:
-        return
-    current = float(product.get("stock_quantity") or 0)
-    product["stock_quantity"] = current + float(delta or 0)
-    record_stock_transaction(product_id, tx_type, delta, reference_id, notes)
-    _save_data()
-
-
-STORE_SETTINGS_DOC_ID = "default"
-
-
-def get_store_settings():
-    user_data = _get_user_data()
-    settings = user_data.get("store_settings")
-    if settings:
-        return settings
-
+    if not settings:
+        # Create default settings
+        settings = StoreSettings(
+            user_id=user_id,
+            store_name="R Sanju Store",
+            address="",
+            phone="",
+            email="",
+        )
+        db.session.add(settings)
+        db.session.commit()
+    
     return {
-        "store_name": "R Sanju Store",
-        "address": "",
-        "phone": "",
-        "email": "",
-        "logo_url": "",
+        "store_name": settings.store_name or "R Sanju Store",
+        "address": settings.address or "",
+        "phone": settings.phone or "",
+        "email": settings.email or "",
+        "logo_url": url_for("get_store_logo") if settings.logo_data else "",
     }
 
 
-def save_store_settings(data: dict) -> None:
-    user_data = _get_user_data()
-    user_data["store_settings"] = data
-    _save_data()
+def save_store_settings(data: dict, logo_file=None) -> None:
+    """Save store settings for current user."""
+    user_id = get_current_user_id()
+    user = get_or_create_user(user_id)
+    
+    settings = StoreSettings.query.filter_by(user_id=user_id).first()
+    
+    if not settings:
+        settings = StoreSettings(user_id=user_id)
+        db.session.add(settings)
+    
+    settings.store_name = data.get("store_name", "R Sanju Store")
+    settings.address = data.get("address", "")
+    settings.phone = data.get("phone", "")
+    settings.email = data.get("email", "")
+    
+    # Handle logo file upload
+    if logo_file and logo_file.filename:
+        settings.logo_data = logo_file.read()
+        settings.logo_filename = secure_filename(logo_file.filename)
+        settings.logo_mimetype = logo_file.mimetype
+    
+    db.session.commit()
 
 
 def generate_invoice_number() -> str:
-    """Simple incremental invoice number: RS-<year>-0001 style."""
-    user_data = _get_user_data()
-    current = user_data.get("invoice_counter", 0)
-    new_value = current + 1
-    user_data["invoice_counter"] = new_value
-    _save_data()
+    """Generate incremental invoice number: RS-<year>-0001 style."""
+    user_id = get_current_user_id()
+    settings = StoreSettings.query.filter_by(user_id=user_id).first()
+    
+    if not settings:
+        user = get_or_create_user(user_id)
+        settings = StoreSettings(user_id=user_id, store_name="R Sanju Store")
+        db.session.add(settings)
+    
+    settings.invoice_counter += 1
+    db.session.commit()
+    
+    year = now_ist().year
+    return f"RS-{year}-{settings.invoice_counter:04d}"
 
-    year = datetime.now().year
-    return f"RS-{year}-{new_value:04d}"
 
+# ---------- Product helpers ----------
+
+def get_products() -> list:
+    """Get all products for current user."""
+    user_id = get_current_user_id()
+    products = Product.query.filter_by(user_id=user_id).all()
+    return products
+
+
+def find_product(product_id: int) -> Product:
+    """Find product by ID for current user."""
+    user_id = get_current_user_id()
+    return Product.query.filter_by(id=product_id, user_id=user_id).first()
+
+
+def create_product(data: dict) -> Product:
+    """Create a new product."""
+    user_id = get_current_user_id()
+    user = get_or_create_user(user_id)
+    
+    sku = data.get("sku", "").strip() or f"SKU-{now_ist().timestamp()}"
+    barcode = data.get("barcode", "").strip() or sku
+    
+    product = Product(
+        user_id=user_id,
+        name=data.get("name", "").strip(),
+        description=data.get("description", "").strip(),
+        sku=sku,
+        barcode=barcode,
+        category=data.get("category", "").strip(),
+        brand=data.get("brand", "").strip(),
+        unit_price=float(data.get("unit_price") or 0),
+        cost_price=float(data.get("cost_price") or 0),
+        stock_quantity=float(data.get("stock_quantity") or 0),
+        min_stock_level=float(data.get("min_stock_level") or 0),
+        supplier_id=int(data.get("supplier_id")) if data.get("supplier_id") else None,
+    )
+    
+    db.session.add(product)
+    db.session.commit()
+    
+    return product
+
+
+def update_product(product: Product, data: dict) -> None:
+    """Update an existing product."""
+    sku = (data.get("sku", "") or "").strip() or product.sku or f"SKU-{product.id}"
+    barcode = (data.get("barcode", "") or "").strip() or product.barcode or sku
+    
+    product.name = data.get("name", "").strip()
+    product.description = data.get("description", "").strip()
+    product.sku = sku
+    product.barcode = barcode
+    product.category = data.get("category", "").strip()
+    product.brand = data.get("brand", "").strip()
+    product.unit_price = float(data.get("unit_price") or 0)
+    product.cost_price = float(data.get("cost_price") or 0)
+    product.stock_quantity = float(data.get("stock_quantity") or 0)
+    product.min_stock_level = float(data.get("min_stock_level") or 0)
+    product.supplier_id = int(data.get("supplier_id")) if data.get("supplier_id") else None
+    
+    db.session.commit()
+
+
+def record_stock_transaction(product_id: int, tx_type: str, quantity: float, reference_id: str = "", notes: str = "") -> None:
+    """Record a stock transaction."""
+    user_id = get_current_user_id()
+    
+    transaction = StockTransaction(
+        user_id=user_id,
+        product_id=product_id,
+        transaction_type=tx_type,
+        quantity=float(quantity or 0),
+        reference_id=reference_id,
+        notes=notes,
+    )
+    
+    db.session.add(transaction)
+    db.session.commit()
+
+
+def adjust_stock(product_id: int, delta: float, tx_type: str, reference_id: str = "", notes: str = "") -> None:
+    """Adjust product stock and record transaction."""
+    product = find_product(product_id)
+    if not product:
+        return
+    
+    product.stock_quantity += float(delta or 0)
+    record_stock_transaction(product_id, tx_type, delta, reference_id, notes)
+    db.session.commit()
+
+
+# ---------- Routes ----------
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -284,9 +275,16 @@ def login():
                 # Verify the Firebase ID token
                 decoded_token = auth.verify_id_token(id_token)
                 user_id = decoded_token['uid']
+                email = decoded_token.get('email', '')
+                
+                # Create or update user in database
+                user = get_or_create_user(user_id, email)
+                user.last_login = now_ist()
+                db.session.commit()
+                
                 session["logged_in"] = True
                 session["user_id"] = user_id
-                session["email"] = decoded_token.get('email', '')
+                session["email"] = email
                 
                 next_url = request.args.get("next") or url_for("invoice_list")
                 return redirect(next_url)
@@ -294,33 +292,23 @@ def login():
                 print(f"Firebase auth error: {e}")
                 flash("Authentication failed. Please try again.", "error")
         else:
-            # Fallback only if configured securely (optional), but for now reject
+            # Firebase not configured or no token provided
             if not FIREBASE_ENABLED:
                 flash("Firebase not configured. Secure login required.", "error")
             else:
                 flash("Invalid authentication method.", "error")
             
-            # Remove insecure "accept all" logic
-            # session["logged_in"] = True ... -> REMOVED
-            pass
-            
-            # Return to login page logic (return redirect(url_for('login')) effectively via fallthrough or explicit)
-            # Actually the function continues... allow fallthrough to render template?
-            # No, if POST, we should return or redirect.
-            
             return redirect(url_for("login"))
 
-
-    # Get store settings without requiring login
+    # Get store settings for branding (use first user's settings or default)
     try:
-        # Try to get default user's store settings for branding
-        if "users" in _data and _data["users"]:
-            first_user = list(_data["users"].values())[0]
-            store = first_user.get("store_settings") or {
-                "store_name": "R Sanju Store",
-                "address": "",
-                "phone": "",
-                "email": "",
+        settings = StoreSettings.query.first()
+        if settings:
+            store = {
+                "store_name": settings.store_name or "R Sanju Store",
+                "address": settings.address or "",
+                "phone": settings.phone or "",
+                "email": settings.email or "",
                 "logo_url": "",
             }
         else:
@@ -345,38 +333,30 @@ def logout():
     return redirect(url_for("login"))
 
 
-
-
-
 @app.route("/")
 @login_required
 def invoice_list():
     store = get_store_settings()
-
+    user_id = get_current_user_id()
     
     search_phone = (request.args.get("phone") or "").strip()
     search_date = (request.args.get("date") or "").strip()
-
-    invoices = list(_get_user_data().get("invoices", []))
-    invoices.sort(key=lambda inv: inv.get("created_at", ""), reverse=True)
-
-   
-    phone_filter = search_phone
-    if phone_filter:
-        invoices = [
-            inv
-            for inv in invoices
-            if phone_filter in (inv.get("customer_phone") or "")
-        ]
-
+    
+    # Build query
+    query = Invoice.query.filter_by(user_id=user_id)
+    
+    if search_phone:
+        query = query.filter(Invoice.customer_phone.contains(search_phone))
     
     if search_date:
-        def _get_invoice_date(inv):
-            inv_date_str = inv.get("invoice_date") or inv.get("created_at", "").split(" ")[0]
-            return inv_date_str
-
-        invoices = [inv for inv in invoices if _get_invoice_date(inv) == search_date]
-
+        try:
+            date_obj = datetime.strptime(search_date, "%Y-%m-%d").date()
+            query = query.filter(Invoice.invoice_date == date_obj)
+        except ValueError:
+            pass
+    
+    invoices = query.order_by(Invoice.created_at.desc()).all()
+    
     return render_template(
         "invoice_list.html",
         store=store,
@@ -389,28 +369,28 @@ def invoice_list():
 @app.route("/invoices/export")
 @login_required
 def export_invoices():
-    """Export all invoices as a CSV file that opens in Excel."""
-    invoices = list(_get_user_data().get("invoices", []))
-    invoices.sort(key=lambda inv: inv.get("created_at", ""), reverse=True)
-
+    """Export all invoices as a CSV file."""
+    user_id = get_current_user_id()
+    invoices = Invoice.query.filter_by(user_id=user_id).order_by(Invoice.created_at.desc()).all()
+    
     output = StringIO()
     writer = csv.writer(output)
-
+    
     writer.writerow(["Invoice #", "Date & time", "Invoice date", "Customer", "Phone", "Total", "Payment mode"])
     for inv in invoices:
         writer.writerow([
-            inv.get("invoice_number", ""),
-            inv.get("created_at", ""),
-            inv.get("invoice_date", ""),
-            inv.get("customer_name") or "-",
-            inv.get("customer_phone") or "-",
-            f"{float(inv.get('total') or 0):.2f}",
-            inv.get("payment_mode") or "-",
+            inv.invoice_number,
+            inv.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+            inv.invoice_date.strftime("%Y-%m-%d"),
+            inv.customer_name or "-",
+            inv.customer_phone or "-",
+            f"{inv.total:.2f}",
+            inv.payment_mode or "-",
         ])
-
+    
     csv_data = output.getvalue()
     output.close()
-
+    
     response = make_response(csv_data)
     response.headers["Content-Type"] = "text/csv; charset=utf-8"
     response.headers["Content-Disposition"] = "attachment; filename=invoices-all.csv"
@@ -421,23 +401,24 @@ def export_invoices():
 @login_required
 def new_invoice():
     store = get_store_settings()
-
+    
     if request.method == "POST":
+        user_id = get_current_user_id()
         form = request.form
-        now = datetime.now()
-        created_at = now.strftime("%Y-%m-%d %H:%M:%S")
-        invoice_date = form.get("invoice_date") or now.strftime("%Y-%m-%d")
+        now = now_ist()
+        invoice_date_str = form.get("invoice_date") or now.strftime("%Y-%m-%d")
+        invoice_date = datetime.strptime(invoice_date_str, "%Y-%m-%d").date()
         invoice_number = generate_invoice_number()
-
+        
         # Line items (arrays)
         descriptions = form.getlist("item_description[]")
         quantities = form.getlist("item_quantity[]")
         unit_prices = form.getlist("item_unit_price[]")
         product_ids = form.getlist("item_product_id[]")
-
+        
         items = []
         subtotal = 0.0
-
+        
         for desc, qty_str, price_str, product_id in zip(descriptions, quantities, unit_prices, product_ids):
             if not desc.strip():
                 continue
@@ -449,16 +430,16 @@ def new_invoice():
                 price = 0.0
             line_total = qty * price
             subtotal += line_total
-            item_data = {
-                "description": desc.strip(),
-                "quantity": qty,
-                "unit_price": price,
-                "line_total": line_total,
-            }
-            if product_id:
-                item_data["product_id"] = product_id
-            items.append(item_data)
-
+            
+            item = InvoiceItem(
+                description=desc.strip(),
+                quantity=qty,
+                unit_price=price,
+                line_total=line_total,
+                product_id=int(product_id) if product_id else None,
+            )
+            items.append(item)
+        
         try:
             discount = float(form.get("discount") or 0)
         except ValueError:
@@ -467,139 +448,131 @@ def new_invoice():
             tax = float(form.get("tax") or 0)
         except ValueError:
             tax = 0.0
-
+        
         total = subtotal - discount + tax
-
-        payment_mode = form.get("payment_mode")
-        payment_reference = form.get("payment_reference", "").strip()
-        notes = form.get("notes", "").strip()
-
-        customer_name = form.get("customer_name", "").strip()
-        customer_phone = form.get("customer_phone", "").strip()
-        customer_address = form.get("customer_address", "").strip()
-        customer_gstin = form.get("customer_gstin", "").strip()
-
-        invoice_data = {
-            "invoice_number": invoice_number,
-            "created_at": created_at,
-            "invoice_date": invoice_date,
-            "customer_name": customer_name,
-            "customer_phone": customer_phone,
-            "customer_address": customer_address,
-            "customer_gstin": customer_gstin,
-            "items": items,
-            "subtotal": subtotal,
-            "discount": discount,
-            "tax": tax,
-            "total": total,
-            "payment_mode": payment_mode,
-            "payment_reference": payment_reference,
-            "notes": notes,
-        }
-
-        invoices = _get_user_data().setdefault("invoices", [])
-        new_id = str(len(invoices) + 1)
-        invoice_data["id"] = new_id
-        invoices.append(invoice_data)
-
+        
+        # Create invoice
+        invoice = Invoice(
+            user_id=user_id,
+            invoice_number=invoice_number,
+            invoice_date=invoice_date,
+            customer_name=form.get("customer_name", "").strip(),
+            customer_phone=form.get("customer_phone", "").strip(),
+            customer_address=form.get("customer_address", "").strip(),
+            customer_gstin=form.get("customer_gstin", "").strip(),
+            subtotal=subtotal,
+            discount=discount,
+            tax=tax,
+            total=total,
+            payment_mode=form.get("payment_mode"),
+            payment_reference=form.get("payment_reference", "").strip(),
+            notes=form.get("notes", "").strip(),
+        )
+        
+        db.session.add(invoice)
+        db.session.flush()  # Get invoice ID
+        
+        # Add items to invoice
+        for item in items:
+            item.invoice_id = invoice.id
+            db.session.add(item)
+        
+        db.session.commit()
+        
         # Adjust stock for any items linked to products
         for item in items:
-            product_id = item.get("product_id")
-            if not product_id:
-                continue
-            qty = float(item.get("quantity") or 0)
-            if qty <= 0:
-                continue
-            adjust_stock(product_id, -qty, "sale", reference_id=new_id, notes=f"Invoice {invoice_number}")
-
-        _save_data()
-
+            if item.product_id and item.quantity > 0:
+                adjust_stock(
+                    item.product_id,
+                    -item.quantity,
+                    "sale",
+                    reference_id=str(invoice.id),
+                    notes=f"Invoice {invoice_number}"
+                )
+        
         flash("Invoice created successfully.", "success")
-        return redirect(url_for("invoice_view", invoice_id=new_id))
-
-    today = datetime.now().strftime("%Y-%m-%d")
+        return redirect(url_for("invoice_view", invoice_id=invoice.id))
+    
+    today = now_ist().strftime("%Y-%m-%d")
     products = get_products()
     return render_template("new_invoice.html", store=store, today=today, products=products)
 
 
-@app.route("/invoice/<invoice_id>")
+@app.route("/invoice/<int:invoice_id>")
 @login_required
-def invoice_view(invoice_id: str):
+def invoice_view(invoice_id: int):
     store = get_store_settings()
-    invoices = _get_user_data().get("invoices", [])
-    invoice = next((inv for inv in invoices if inv.get("id") == invoice_id), None)
+    user_id = get_current_user_id()
+    invoice = Invoice.query.filter_by(id=invoice_id, user_id=user_id).first()
+    
     if not invoice:
         flash("Invoice not found.", "error")
         return redirect(url_for("invoice_list"))
-
+    
     return render_template("invoice_view.html", store=store, invoice=invoice)
 
 
-@app.route("/invoice/<invoice_id>/delete", methods=["POST"])
+@app.route("/invoice/<int:invoice_id>/delete", methods=["POST"])
 @login_required
-def delete_invoice(invoice_id: str):
+def delete_invoice(invoice_id: int):
     """Delete a single invoice by id."""
-    invoices = _get_user_data().get("invoices", [])
-    index_to_remove = None
-    for idx, inv in enumerate(invoices):
-        if inv.get("id") == invoice_id:
-            index_to_remove = idx
-            break
-
-    if index_to_remove is None:
+    user_id = get_current_user_id()
+    invoice = Invoice.query.filter_by(id=invoice_id, user_id=user_id).first()
+    
+    if not invoice:
         flash("Invoice not found.", "error")
     else:
-        invoices.pop(index_to_remove)
-        _save_data()
+        db.session.delete(invoice)
+        db.session.commit()
         flash("Invoice deleted successfully.", "success")
-
+    
     return redirect(url_for("invoice_list"))
 
 
-@app.route("/invoice/<invoice_id>/convert-credit-to-cash", methods=["POST"])
+@app.route("/invoice/<int:invoice_id>/convert-credit-to-cash", methods=["POST"])
 @login_required
-def convert_credit_to_cash(invoice_id: str):
+def convert_credit_to_cash(invoice_id: int):
     """Convert an invoice payment mode from CREDIT to CASH."""
-    invoices = _get_user_data().get("invoices", [])
-    invoice = next((inv for inv in invoices if inv.get("id") == invoice_id), None)
+    user_id = get_current_user_id()
+    invoice = Invoice.query.filter_by(id=invoice_id, user_id=user_id).first()
+    
     if not invoice:
         flash("Invoice not found.", "error")
         return redirect(url_for("invoice_list"))
-
-    if (invoice.get("payment_mode") or "").upper() != "CREDIT":
+    
+    if (invoice.payment_mode or "").upper() != "CREDIT":
         flash("Invoice is not in CREDIT payment mode.", "error")
         return redirect(url_for("invoice_view", invoice_id=invoice_id))
-
-    invoice["payment_mode"] = "CASH"
-
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    existing_notes = (invoice.get("notes") or "").strip()
+    
+    invoice.payment_mode = "CASH"
+    
+    timestamp = now_ist().strftime("%Y-%m-%d %H:%M:%S")
     conversion_note = f"[Converted from CREDIT to CASH on {timestamp}]"
-    if existing_notes:
-        invoice["notes"] = existing_notes + "\n" + conversion_note
+    if invoice.notes:
+        invoice.notes = invoice.notes + "\n" + conversion_note
     else:
-        invoice["notes"] = conversion_note
-
-    _save_data()
+        invoice.notes = conversion_note
+    
+    db.session.commit()
     flash("Invoice payment changed from CREDIT to CASH.", "success")
-
+    
     return redirect(url_for("invoice_view", invoice_id=invoice_id))
 
 
-@app.route("/invoice/<invoice_id>/download")
+@app.route("/invoice/<int:invoice_id>/download")
 @login_required
-def download_invoice(invoice_id: str):
+def download_invoice(invoice_id: int):
     store = get_store_settings()
-    invoices = _get_user_data().get("invoices", [])
-    invoice = next((inv for inv in invoices if inv.get("id") == invoice_id), None)
+    user_id = get_current_user_id()
+    invoice = Invoice.query.filter_by(id=invoice_id, user_id=user_id).first()
+    
     if not invoice:
         flash("Invoice not found.", "error")
         return redirect(url_for("invoice_list"))
-
-   
+    
     html = render_template("invoice_view.html", store=store, invoice=invoice)
     response = make_response(html)
-    filename = f"invoice-{invoice.get('invoice_number', invoice_id)}.html"
+    filename = f"invoice-{invoice.invoice_number}.html"
     response.headers["Content-Type"] = "text/html; charset=utf-8"
     response.headers["Content-Disposition"] = f"attachment; filename={filename}"
     return response
@@ -609,59 +582,53 @@ def download_invoice(invoice_id: str):
 @login_required
 def expenses():
     store = get_store_settings()
+    user_id = get_current_user_id()
+    
     if request.method == "POST":
         form = request.form
-        d = form.get("date") or datetime.now().strftime("%Y-%m-%d")
-        desc = form.get("description", "").strip()
-        category = form.get("category", "").strip()
-        try:
-            amount = float(form.get("amount") or 0)
-        except ValueError:
-            amount = 0.0
-
-        exp_list = _get_user_data().setdefault("expenses", [])
-        new_id = str(len(exp_list) + 1)
-        exp_list.append(
-            {
-                "id": new_id,
-                "date": d,
-                "description": desc,
-                "category": category,
-                "amount": amount,
-            }
+        date_str = form.get("date") or now_ist().strftime("%Y-%m-%d")
+        expense_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        
+        expense = Expense(
+            user_id=user_id,
+            date=expense_date,
+            description=form.get("description", "").strip(),
+            category=form.get("category", "").strip(),
+            amount=float(form.get("amount") or 0),
         )
-        _save_data()
+        
+        db.session.add(expense)
+        db.session.commit()
         flash("Expense recorded.", "success")
         return redirect(url_for("expenses"))
-
-    all_expenses = list(_get_user_data().get("expenses", []))
-    all_expenses.sort(key=lambda e: e.get("date", ""), reverse=True)
-    today = datetime.now().strftime("%Y-%m-%d")
+    
+    all_expenses = Expense.query.filter_by(user_id=user_id).order_by(Expense.date.desc()).all()
+    today = now_ist().strftime("%Y-%m-%d")
     return render_template("expenses.html", store=store, expenses=all_expenses, today=today)
 
 
 @app.route("/expenses/export")
 @login_required
 def export_expenses():
-    """Export all expenses as a CSV file that opens in Excel."""
-    all_expenses = list(_get_user_data().get("expenses", []))
-    all_expenses.sort(key=lambda e: e.get("date", ""), reverse=True)
-
+    """Export all expenses as a CSV file."""
+    user_id = get_current_user_id()
+    all_expenses = Expense.query.filter_by(user_id=user_id).order_by(Expense.date.desc()).all()
+    
     output = StringIO()
     writer = csv.writer(output)
-
+    
     writer.writerow(["Date", "Description", "Category", "Amount"])
     for exp in all_expenses:
         writer.writerow([
-            exp.get("date", ""),
-            exp.get("description", ""),
-            exp.get("category") or "-",
-            f"{float(exp.get('amount') or 0):.2f}",
+            exp.date.strftime("%Y-%m-%d"),
+            exp.description,
+            exp.category or "-",
+            f"{exp.amount:.2f}",
         ])
-
+    
     csv_data = output.getvalue()
     output.close()
-
+    
     response = make_response(csv_data)
     response.headers["Content-Type"] = "text/csv; charset=utf-8"
     response.headers["Content-Disposition"] = "attachment; filename=expenses-all.csv"
@@ -672,75 +639,55 @@ def export_expenses():
 @login_required
 def reports():
     store = get_store_settings()
-    invoices = _get_user_data().get("invoices", [])
-    expenses_data = _get_user_data().get("expenses", [])
-
-    today_str = datetime.now().strftime("%Y-%m-%d")
-    current_month_str = datetime.now().strftime("%Y-%m")
-
+    user_id = get_current_user_id()
+    
+    today_str = now_ist().strftime("%Y-%m-%d")
+    current_month_str = now_ist().strftime("%Y-%m")
+    
     period = request.args.get("period") or "daily"
     selected_date = request.args.get("date") or today_str
     selected_month = request.args.get("month") or current_month_str
-
+    
     if period == "monthly":
-        # Use year-month from selected_month
         try:
             year, month = map(int, selected_month.split("-"))
         except ValueError:
-            year, month = datetime.now().year, datetime.now().month
-
-        inv_filtered = []
-        for inv in invoices:
-            inv_date_str = inv.get("invoice_date") or inv.get("created_at", "").split(" ")[0]
-            try:
-                inv_d = datetime.strptime(inv_date_str, "%Y-%m-%d").date()
-            except Exception:
-                continue
-            if inv_d.year == year and inv_d.month == month:
-                inv_filtered.append(inv)
-
-        exp_filtered = []
-        for exp in expenses_data:
-            exp_date_str = exp.get("date")
-            if not exp_date_str:
-                continue
-            try:
-                exp_d = datetime.strptime(exp_date_str, "%Y-%m-%d").date()
-            except Exception:
-                continue
-            if exp_d.year == year and exp_d.month == month:
-                exp_filtered.append(exp)
-
+            year, month = now_ist().year, now_ist().month
+        
+        # Get invoices for the month
+        from sqlalchemy import extract
+        invoices = Invoice.query.filter_by(user_id=user_id).filter(
+            extract('year', Invoice.invoice_date) == year,
+            extract('month', Invoice.invoice_date) == month
+        ).all()
+        
+        # Get expenses for the month
+        expenses_data = Expense.query.filter_by(user_id=user_id).filter(
+            extract('year', Expense.date) == year,
+            extract('month', Expense.date) == month
+        ).all()
+        
         label = f"{year}-{month:02d} (Monthly)"
     else:
         # Daily report
         try:
-            d = datetime.strptime(selected_date, "%Y-%m-%d").date()
+            date_obj = datetime.strptime(selected_date, "%Y-%m-%d").date()
         except ValueError:
-            d = date.today()
-            selected_date = d.strftime("%Y-%m-%d")
-
-        inv_filtered = []
-        for inv in invoices:
-            inv_date_str = inv.get("invoice_date") or inv.get("created_at", "").split(" ")[0]
-            try:
-                inv_d = datetime.strptime(inv_date_str, "%Y-%m-%d").date()
-            except Exception:
-                continue
-            if inv_d == d:
-                inv_filtered.append(inv)
-
-        exp_filtered = [exp for exp in expenses_data if exp.get("date") == selected_date]
+            date_obj = date.today()
+            selected_date = date_obj.strftime("%Y-%m-%d")
+        
+        invoices = Invoice.query.filter_by(user_id=user_id, invoice_date=date_obj).all()
+        expenses_data = Expense.query.filter_by(user_id=user_id, date=date_obj).all()
         label = f"{selected_date} (Daily)"
-
-    sales_total = sum(float(inv.get("total") or 0) for inv in inv_filtered)
-    expenses_total = sum(float(exp.get("amount") or 0) for exp in exp_filtered)
+    
+    sales_total = sum(inv.total for inv in invoices)
+    expenses_total = sum(exp.amount for exp in expenses_data)
     net_total = sales_total - expenses_total
-
-    invoice_count = len(inv_filtered)
-    expense_count = len(exp_filtered)
-
-    # Simple AI-style narrative summary generated automatically in Python
+    
+    invoice_count = len(invoices)
+    expense_count = len(expenses_data)
+    
+    # AI-style summary
     if invoice_count == 0 and expense_count == 0:
         ai_summary = "No financial activity recorded for this period."
     else:
@@ -749,7 +696,7 @@ def reports():
             trend = "profitable"
         elif net_total < 0:
             trend = "loss-making"
-
+        
         ai_summary = (
             f"AI summary: For {label}, total sales are Rs. {sales_total:.2f} "
             f"across {invoice_count} invoice(s), with expenses of Rs. {expenses_total:.2f}. "
@@ -759,7 +706,7 @@ def reports():
             ai_summary += "Consider reviewing infrastructure and operational costs to optimize profit."
         else:
             ai_summary += "No expenses recorded, so all sales are currently counted as profit."
-
+    
     report = {
         "label": label,
         "sales_total": sales_total,
@@ -767,11 +714,11 @@ def reports():
         "net_total": net_total,
         "invoice_count": invoice_count,
         "expense_count": expense_count,
-        "invoices": inv_filtered,
-        "expenses": exp_filtered,
+        "invoices": invoices,
+        "expenses": expenses_data,
         "ai_summary": ai_summary,
     }
-
+    
     return render_template(
         "reports.html",
         store=store,
@@ -785,120 +732,95 @@ def reports():
 @app.route("/reports/export")
 @login_required
 def export_report():
-    """Export the current report (same filters) as a CSV file that opens in Excel."""
-    invoices = _get_user_data().get("invoices", [])
-    expenses_data = _get_user_data().get("expenses", [])
-
-    today_str = datetime.now().strftime("%Y-%m-%d")
-    current_month_str = datetime.now().strftime("%Y-%m")
-
+    """Export the current report as CSV."""
+    user_id = get_current_user_id()
+    
+    today_str = now_ist().strftime("%Y-%m-%d")
+    current_month_str = now_ist().strftime("%Y-%m")
+    
     period = request.args.get("period") or "daily"
     selected_date = request.args.get("date") or today_str
     selected_month = request.args.get("month") or current_month_str
-
+    
     if period == "monthly":
         try:
             year, month = map(int, selected_month.split("-"))
         except ValueError:
-            year, month = datetime.now().year, datetime.now().month
-
-        inv_filtered = []
-        for inv in invoices:
-            inv_date_str = inv.get("invoice_date") or inv.get("created_at", "").split(" ")[0]
-            try:
-                inv_d = datetime.strptime(inv_date_str, "%Y-%m-%d").date()
-            except Exception:
-                continue
-            if inv_d.year == year and inv_d.month == month:
-                inv_filtered.append(inv)
-
-        exp_filtered = []
-        for exp in expenses_data:
-            exp_date_str = exp.get("date")
-            if not exp_date_str:
-                continue
-            try:
-                exp_d = datetime.strptime(exp_date_str, "%Y-%m-%d").date()
-            except Exception:
-                continue
-            if exp_d.year == year and exp_d.month == month:
-                exp_filtered.append(exp)
-
+            year, month = now_ist().year, now_ist().month
+        
+        from sqlalchemy import extract
+        invoices = Invoice.query.filter_by(user_id=user_id).filter(
+            extract('year', Invoice.invoice_date) == year,
+            extract('month', Invoice.invoice_date) == month
+        ).all()
+        
+        expenses_data = Expense.query.filter_by(user_id=user_id).filter(
+            extract('year', Expense.date) == year,
+            extract('month', Expense.date) == month
+        ).all()
+        
         label = f"{year}-{month:02d} (Monthly)"
+        filename_period = selected_month
     else:
         try:
-            d = datetime.strptime(selected_date, "%Y-%m-%d").date()
+            date_obj = datetime.strptime(selected_date, "%Y-%m-%d").date()
         except ValueError:
-            d = date.today()
-            selected_date = d.strftime("%Y-%m-%d")
-
-        inv_filtered = []
-        for inv in invoices:
-            inv_date_str = inv.get("invoice_date") or inv.get("created_at", "").split(" ")[0]
-            try:
-                inv_d = datetime.strptime(inv_date_str, "%Y-%m-%d").date()
-            except Exception:
-                continue
-            if inv_d == d:
-                inv_filtered.append(inv)
-
-        exp_filtered = [exp for exp in expenses_data if exp.get("date") == selected_date]
+            date_obj = date.today()
+            selected_date = date_obj.strftime("%Y-%m-%d")
+        
+        invoices = Invoice.query.filter_by(user_id=user_id, invoice_date=date_obj).all()
+        expenses_data = Expense.query.filter_by(user_id=user_id, date=date_obj).all()
         label = f"{selected_date} (Daily)"
-
-    sales_total = sum(float(inv.get("total") or 0) for inv in inv_filtered)
-    expenses_total = sum(float(exp.get("amount") or 0) for exp in exp_filtered)
+        filename_period = selected_date
+    
+    sales_total = sum(inv.total for inv in invoices)
+    expenses_total = sum(exp.amount for exp in expenses_data)
     net_total = sales_total - expenses_total
-
+    
     output = StringIO()
     writer = csv.writer(output)
-
+    
     # Summary section
     writer.writerow(["Report", label])
     writer.writerow(["Total sales", f"{sales_total:.2f}"])
     writer.writerow(["Total expenses", f"{expenses_total:.2f}"])
     writer.writerow(["Net (sales - expenses)", f"{net_total:.2f}"])
     writer.writerow([])
-
+    
     # Invoices section
     writer.writerow(["Invoices"])
     writer.writerow(["Invoice #", "Date", "Customer", "Total", "Payment mode"])
-    for inv in inv_filtered:
+    for inv in invoices:
         writer.writerow([
-            inv.get("invoice_number", ""),
-            inv.get("invoice_date") or (inv.get("created_at", "").split(" ")[0] if inv.get("created_at") else ""),
-            inv.get("customer_name") or "-",
-            f"{float(inv.get('total') or 0):.2f}",
-            inv.get("payment_mode") or "-",
+            inv.invoice_number,
+            inv.invoice_date.strftime("%Y-%m-%d"),
+            inv.customer_name or "-",
+            f"{inv.total:.2f}",
+            inv.payment_mode or "-",
         ])
-
+    
     writer.writerow([])
-
+    
     # Expenses section
     writer.writerow(["Expenses"])
     writer.writerow(["Date", "Description", "Category", "Amount"])
-    for exp in exp_filtered:
+    for exp in expenses_data:
         writer.writerow([
-            exp.get("date", ""),
-            exp.get("description", ""),
-            exp.get("category") or "-",
-            f"{float(exp.get('amount') or 0):.2f}",
+            exp.date.strftime("%Y-%m-%d"),
+            exp.description,
+            exp.category or "-",
+            f"{exp.amount:.2f}",
         ])
-
+    
     csv_data = output.getvalue()
     output.close()
-
-    filename_period = selected_month if period == "monthly" else selected_date
+    
     filename = f"report-{period}-{filename_period}.csv"
-
+    
     response = make_response(csv_data)
     response.headers["Content-Type"] = "text/csv; charset=utf-8"
     response.headers["Content-Disposition"] = f"attachment; filename={filename}"
     return response
-
-
-@app.route("/uploads/<filename>")
-def uploaded_file(filename):
-    return send_from_directory(UPLOAD_FOLDER, filename)
 
 
 @app.route("/settings", methods=["GET", "POST"])
@@ -910,22 +832,35 @@ def settings():
             "address": request.form.get("address", "").strip(),
             "phone": request.form.get("phone", "").strip(),
             "email": request.form.get("email", "").strip(),
-            "logo_url": request.form.get("logo_url", "").strip(),
         }
         
-        if "logo_file" in request.files:
-            file = request.files["logo_file"]
-            if file and file.filename:
-                filename = secure_filename(f"logo_{int(datetime.now().timestamp())}_{file.filename}")
-                file.save(UPLOAD_FOLDER / filename)
-                data["logo_url"] = url_for("uploaded_file", filename=filename)
+        logo_file = request.files.get("logo_file")
+        save_store_settings(data, logo_file)
         
-        save_store_settings(data)
         flash("Store settings saved.", "success")
         return redirect(url_for("settings"))
-
+    
     store = get_store_settings()
     return render_template("settings.html", store=store)
+
+
+@app.route("/store-logo")
+def get_store_logo():
+    """Serve store logo from database."""
+    user_id = session.get("user_id", "default_user")
+    settings = StoreSettings.query.filter_by(user_id=user_id).first()
+    
+    if settings and settings.logo_data:
+        return send_file(
+            BytesIO(settings.logo_data),
+            mimetype=settings.logo_mimetype or 'image/png',
+            as_attachment=False,
+            download_name=settings.logo_filename or 'logo.png'
+        )
+    
+    # Return 404 if no logo
+    from flask import abort
+    abort(404)
 
 
 # ---------- Product management ----------
@@ -934,42 +869,30 @@ def settings():
 @login_required
 def products_list():
     store = get_store_settings()
-    products = list(get_products())
-
-    # Simple search/filter by name, sku, or barcode
+    user_id = get_current_user_id()
+    
+    # Search/filter
     q = (request.args.get("q") or "").strip().lower()
     stock_status = (request.args.get("stock_status") or "").strip()
-
-    def _is_low_stock(p: dict) -> bool:
-        try:
-            qty = float(p.get("stock_quantity") or 0)
-            min_lvl = float(p.get("min_stock_level") or 0)
-        except Exception:
-            return False
-        return qty <= min_lvl
-
+    
+    query = Product.query.filter_by(user_id=user_id)
+    
     if q:
-        filtered = []
-        for p in products:
-            text = " ".join(
-                [
-                    str(p.get("name") or ""),
-                    str(p.get("sku") or ""),
-                    str(p.get("barcode") or ""),
-                ]
-            ).lower()
-            if q in text:
-                filtered.append(p)
-        products = filtered
-
+        query = query.filter(
+            db.or_(
+                Product.name.ilike(f"%{q}%"),
+                Product.sku.ilike(f"%{q}%"),
+                Product.barcode.ilike(f"%{q}%"),
+            )
+        )
+    
     if stock_status == "low":
-        products = [p for p in products if _is_low_stock(p)]
+        query = query.filter(Product.stock_quantity <= Product.min_stock_level)
     elif stock_status == "in_stock":
-        products = [p for p in products if float(p.get("stock_quantity") or 0) > 0]
-
-    # Sort by name
-    products.sort(key=lambda p: (p.get("name") or "").lower())
-
+        query = query.filter(Product.stock_quantity > 0)
+    
+    products = query.order_by(Product.name).all()
+    
     return render_template("products_list.html", store=store, products=products)
 
 
@@ -984,19 +907,20 @@ def product_new():
             return redirect(url_for("products_list"))
         except Exception as e:
             flash(f"Failed to create product: {e}", "error")
-
+    
     return render_template("product_form.html", store=store, product=None)
 
 
-@app.route("/products/<product_id>/edit", methods=["GET", "POST"])
+@app.route("/products/<int:product_id>/edit", methods=["GET", "POST"])
 @login_required
-def product_edit(product_id: str):
+def product_edit(product_id: int):
     store = get_store_settings()
     product = find_product(product_id)
+    
     if not product:
         flash("Product not found.", "error")
         return redirect(url_for("products_list"))
-
+    
     if request.method == "POST":
         try:
             update_product(product, request.form)
@@ -1004,38 +928,35 @@ def product_edit(product_id: str):
             return redirect(url_for("products_list"))
         except Exception as e:
             flash(f"Failed to update product: {e}", "error")
-
+    
     return render_template("product_form.html", store=store, product=product)
 
 
-@app.route("/products/<product_id>/barcode")
+@app.route("/products/<int:product_id>/barcode")
 @login_required
-def product_barcode(product_id: str):
+def product_barcode(product_id: int):
     store = get_store_settings()
     product = find_product(product_id)
+    
     if not product:
         flash("Product not found.", "error")
         return redirect(url_for("products_list"))
+    
     return render_template("product_barcode.html", store=store, product=product)
 
 
-@app.route("/products/<product_id>/delete", methods=["POST"])
+@app.route("/products/<int:product_id>/delete", methods=["POST"])
 @login_required
-def product_delete(product_id: str):
-    products = get_products()
-    index_to_remove = None
-    for idx, p in enumerate(products):
-        if p.get("id") == product_id:
-            index_to_remove = idx
-            break
-
-    if index_to_remove is None:
+def product_delete(product_id: int):
+    product = find_product(product_id)
+    
+    if not product:
         flash("Product not found.", "error")
     else:
-        products.pop(index_to_remove)
-        _save_data()
+        db.session.delete(product)
+        db.session.commit()
         flash("Product deleted.", "success")
-
+    
     return redirect(url_for("products_list"))
 
 
@@ -1045,33 +966,27 @@ def product_delete(product_id: str):
 @login_required
 def inventory_dashboard():
     store = get_store_settings()
-    products = list(get_products())
-
+    user_id = get_current_user_id()
+    products = Product.query.filter_by(user_id=user_id).all()
+    
     total_products = len(products)
     total_stock_qty = 0.0
     total_stock_value_selling = 0.0
     total_stock_value_cost = 0.0
     low_stock_products = []
-
+    
     for p in products:
-        try:
-            qty = float(p.get("stock_quantity") or 0)
-            unit_price = float(p.get("unit_price") or 0)
-            cost_price = float(p.get("cost_price") or 0)
-            min_lvl = float(p.get("min_stock_level") or 0)
-        except Exception:
-            continue
-
-        total_stock_qty += qty
-        total_stock_value_selling += qty * unit_price
-        total_stock_value_cost += qty * cost_price
-
-        if qty <= min_lvl:
+        total_stock_qty += p.stock_quantity
+        total_stock_value_selling += p.stock_quantity * p.unit_price
+        total_stock_value_cost += p.stock_quantity * p.cost_price
+        
+        if p.stock_quantity <= p.min_stock_level:
             low_stock_products.append(p)
-
-    recent_txs = list(_get_user_data().get("stock_transactions", []))[-20:]
-    recent_txs.reverse()
-
+    
+    recent_txs = StockTransaction.query.filter_by(user_id=user_id).order_by(
+        StockTransaction.date.desc()
+    ).limit(20).all()
+    
     summary = {
         "total_products": total_products,
         "total_stock_qty": total_stock_qty,
@@ -1080,10 +995,14 @@ def inventory_dashboard():
         "low_stock_products": low_stock_products,
         "recent_transactions": recent_txs,
     }
-
+    
     return render_template("inventory_dashboard.html", store=store, summary=summary)
 
 
 if __name__ == "__main__":
-    # Runs on http://127.0.0.1:5000/ by default
+    # Create tables if they don't exist
+    with app.app_context():
+        db.create_all()
+    
+    # Run app
     app.run(debug=True, host="0.0.0.0", port=5000)
