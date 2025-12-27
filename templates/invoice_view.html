@@ -79,11 +79,11 @@
           {% for item in invoice['items'] %}
           <div class="receipt-item">
             <span class="item-name">{{ item.description }}</span>
-            <span class="item-price">{{ '%.2f'|format(item.line_total) }}</span>
+            <span class="item-price">₹{{ '%.2f'|format(item.line_total) }}</span>
           </div>
           {% if item.quantity > 1 %}
           <div class="receipt-item-detail">
-            {{ item.quantity }} x {{ '%.2f'|format(item.unit_price) }}
+            {{ item.quantity }} x ₹{{ '%.2f'|format(item.unit_price) }}
           </div>
           {% endif %}
           {% endfor %}
@@ -96,18 +96,18 @@
         <div class="receipt-totals">
           <div class="receipt-row">
             <span class="receipt-label">Subtotal:</span>
-            <span class="receipt-value">{{ '%.2f'|format(invoice.subtotal or 0) }}</span>
+            <span class="receipt-value">₹{{ '%.2f'|format(invoice.subtotal or 0) }}</span>
           </div>
           {% if invoice.discount and invoice.discount > 0 %}
           <div class="receipt-row">
             <span class="receipt-label">Discount:</span>
-            <span class="receipt-value">-{{ '%.2f'|format(invoice.discount) }}</span>
+            <span class="receipt-value">-₹{{ '%.2f'|format(invoice.discount) }}</span>
           </div>
           {% endif %}
           {% if invoice.tax and invoice.tax > 0 %}
           <div class="receipt-row">
             <span class="receipt-label">Tax:</span>
-            <span class="receipt-value">{{ '%.2f'|format(invoice.tax) }}</span>
+            <span class="receipt-value">₹{{ '%.2f'|format(invoice.tax) }}</span>
           </div>
           {% endif %}
         </div>
@@ -118,7 +118,7 @@
         <!-- Grand Total -->
         <div class="receipt-grand-total">
           <span>Total Payment</span>
-          <span class="grand-total-value">{{ '%.2f'|format(invoice.total or 0) }}</span>
+          <span class="grand-total-value">₹{{ '%.2f'|format(invoice.total or 0) }}</span>
         </div>
 
         <!-- Double Dashed Separator -->
@@ -220,8 +220,8 @@
         <tr>
           <td>{{ item.description }}</td>
           <td>{{ item.quantity }}</td>
-          <td>{{ '%.2f'|format(item.unit_price) }}</td>
-          <td>{{ '%.2f'|format(item.line_total) }}</td>
+          <td>₹{{ '%.2f'|format(item.unit_price) }}</td>
+          <td>₹{{ '%.2f'|format(item.line_total) }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -259,19 +259,19 @@
       <div class="totals-box">
         <div class="totals-row">
           <span>Subtotal:</span>
-          <span>{{ '%.2f'|format(invoice.subtotal or 0) }}</span>
+          <span>₹{{ '%.2f'|format(invoice.subtotal or 0) }}</span>
         </div>
         <div class="totals-row">
           <span>Discount:</span>
-          <span>{{ '%.2f'|format(invoice.discount or 0) }}</span>
+          <span>₹{{ '%.2f'|format(invoice.discount or 0) }}</span>
         </div>
         <div class="totals-row">
           <span>Tax:</span>
-          <span>{{ '%.2f'|format(invoice.tax or 0) }}</span>
+          <span>₹{{ '%.2f'|format(invoice.tax or 0) }}</span>
         </div>
         <div class="totals-row grand-total">
           <span>Total:</span>
-          <span>{{ '%.2f'|format(invoice.total or 0) }}</span>
+          <span>₹{{ '%.2f'|format(invoice.total or 0) }}</span>
         </div>
       </div>
     </div>
