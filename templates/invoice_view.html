@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Invoice {{ invoice.invoice_number }} - R Sanju Store{% endblock %}
+{% block title %}Invoice {{ invoice.invoice_number }} - Managekarlo{% endblock %}
 
 {% block content %}
 <section class="page invoice-view">
@@ -13,115 +13,300 @@
     </div>
   </div>
 
-  <section class="store-details">
-    <div class="store-header">
-      {% if store.logo_url %}
-      <img src="{{ store.logo_url }}" alt="{{ store.store_name or 'Store Logo' }}" class="store-logo" />
-      {% endif %}
-      <div class="store-header-text">
-        <h3>{{ store.store_name or 'R Sanju Store' }}</h3>
-        {% if store.address %}
-        <p>{{ store.address }}</p>
+  <!-- View Toggle Buttons -->
+  <div class="view-toggle" style="display: flex; gap: 0.5rem; margin-bottom: 1rem; justify-content: center;">
+    <button type="button" class="btn view-toggle-btn" id="btn-receipt-view" onclick="showReceiptView()">
+      Receipt View
+    </button>
+    <button type="button" class="btn view-toggle-btn active" id="btn-normal-view" onclick="showNormalView()">
+      Normal View
+    </button>
+  </div>
+
+  <!-- ==================== RECEIPT STYLE VIEW ==================== -->
+  <div id="receipt-view" class="invoice-content-view" style="display: none;">
+    <div class="receipt-container">
+      <div class="receipt-paper">
+        <!-- Receipt Header -->
+        <div class="receipt-header">
+          <div class="receipt-title">CASH RECEIPT</div>
+          <div class="receipt-logo-area">
+            {% if store.logo_url %}
+            <img src="{{ store.logo_url }}" alt="{{ store.store_name or 'Managekarlo' }}" class="receipt-logo" />
+            {% else %}
+            <div class="receipt-logo-placeholder">MK</div>
+            {% endif %}
+          </div>
+          <div class="receipt-store-name">{{ store.store_name or 'Managekarlo' }}</div>
+        </div>
+
+        <!-- Store & Invoice Info -->
+        <div class="receipt-info">
+          {% if store.address %}
+          <div class="receipt-row">
+            <span class="receipt-label">Address:</span>
+            <span class="receipt-value">{{ store.address }}</span>
+          </div>
+          {% endif %}
+          <div class="receipt-row">
+            <span class="receipt-label">Date:</span>
+            <span class="receipt-value">{{ invoice.invoice_date }}</span>
+          </div>
+          <div class="receipt-row">
+            <span class="receipt-label">Time:</span>
+            <span class="receipt-value">{{ invoice.created_at|format_ist_time }} IST</span>
+          </div>
+          {% if invoice.customer_name %}
+          <div class="receipt-row">
+            <span class="receipt-label">Customer:</span>
+            <span class="receipt-value">{{ invoice.customer_name }}</span>
+          </div>
+          {% endif %}
+          {% if invoice.customer_phone %}
+          <div class="receipt-row">
+            <span class="receipt-label">Phone:</span>
+            <span class="receipt-value">{{ invoice.customer_phone }}</span>
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- Dashed Separator -->
+        <div class="receipt-separator">- - - - - - - - - - - - - - - - - - - - -</div>
+
+        <!-- Items List -->
+        <div class="receipt-items">
+          {% for item in invoice['items'] %}
+          <div class="receipt-item">
+            <span class="item-name">{{ item.description }}</span>
+            <span class="item-price">{{ '%.2f'|format(item.line_total) }}</span>
+          </div>
+          {% if item.quantity > 1 %}
+          <div class="receipt-item-detail">
+            {{ item.quantity }} x {{ '%.2f'|format(item.unit_price) }}
+          </div>
+          {% endif %}
+          {% endfor %}
+        </div>
+
+        <!-- Dashed Separator -->
+        <div class="receipt-separator">- - - - - - - - - - - - - - - - - - - - -</div>
+
+        <!-- Totals -->
+        <div class="receipt-totals">
+          <div class="receipt-row">
+            <span class="receipt-label">Subtotal:</span>
+            <span class="receipt-value">{{ '%.2f'|format(invoice.subtotal or 0) }}</span>
+          </div>
+          {% if invoice.discount and invoice.discount > 0 %}
+          <div class="receipt-row">
+            <span class="receipt-label">Discount:</span>
+            <span class="receipt-value">-{{ '%.2f'|format(invoice.discount) }}</span>
+          </div>
+          {% endif %}
+          {% if invoice.tax and invoice.tax > 0 %}
+          <div class="receipt-row">
+            <span class="receipt-label">Tax:</span>
+            <span class="receipt-value">{{ '%.2f'|format(invoice.tax) }}</span>
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- Dashed Separator -->
+        <div class="receipt-separator">- - - - - - - - - - - - - - - - - - - - -</div>
+
+        <!-- Grand Total -->
+        <div class="receipt-grand-total">
+          <span>Total Payment</span>
+          <span class="grand-total-value">{{ '%.2f'|format(invoice.total or 0) }}</span>
+        </div>
+
+        <!-- Double Dashed Separator -->
+        <div class="receipt-separator-double">= = = = = = = = = = = = = = = = = = = =</div>
+
+        <!-- Payment Mode -->
+        <div class="receipt-payment-mode">
+          <span class="badge badge-payment-{{ (invoice.payment_mode or 'OTHER')|lower }}">
+            {{ invoice.payment_mode or 'CASH' }}
+          </span>
+          {% if invoice.payment_reference %}
+          <div class="receipt-reference">Ref: {{ invoice.payment_reference }}</div>
+          {% endif %}
+        </div>
+
+        {% if invoice.payment_mode == 'CREDIT' %}
+        <form method="post" action="{{ url_for('convert_credit_to_cash', invoice_id=invoice.id) }}"
+          onsubmit="return confirm('Convert this invoice from CREDIT to CASH?');" class="receipt-convert-form">
+          <button type="submit" class="btn small">Convert CREDIT to CASH</button>
+        </form>
         {% endif %}
-        {% if store.phone or store.email %}
-        <p>
-          {% if store.phone %}Phone / WhatsApp: {{ store.phone }}{% endif %}
-          {% if store.phone and store.email %} | {% endif %}
-          {% if store.email %}Email: {{ store.email }}{% endif %}
-        </p>
+
+        {% if invoice.notes %}
+        <div class="receipt-notes">
+          <em>Note: {{ invoice.notes }}</em>
+        </div>
         {% endif %}
-      </div>
-    </div>
-  </section>
 
-  <section class="invoice-meta">
-    <div>
-      <p><strong>Invoice Number:</strong> {{ invoice.invoice_number }}</p>
-      <p><strong>Invoice Date:</strong> {{ invoice.invoice_date }}</p>
-      <p><strong>Created At (date &amp; time):</strong> {{ invoice.created_at }}</p>
-    </div>
-    <div>
-      <p><strong>Customer:</strong> {{ invoice.customer_name or '-' }}</p>
-      {% if invoice.customer_phone %}<p><strong>Phone:</strong> {{ invoice.customer_phone }}</p>{% endif %}
-      {% if invoice.customer_address %}<p><strong>Address:</strong> {{ invoice.customer_address }}</p>{% endif %}
-      {% if invoice.customer_gstin %}<p><strong>GSTIN:</strong> {{ invoice.customer_gstin }}</p>{% endif %}
-    </div>
-  </section>
+        <!-- Thank You Footer -->
+        <div class="receipt-thank-you">THANK YOU!</div>
 
-  <h3>Items</h3>
-  <table class="table">
-    <thead>
-      <tr>
-        <th>Description</th>
-        <th>Qty</th>
-        <th>Unit Price</th>
-        <th>Line Total</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for item in invoice['items'] %}
-      <tr>
-        <td>{{ item.description }}</td>
-        <td>{{ item.quantity }}</td>
-        <td>{{ '%.2f'|format(item.unit_price) }}</td>
-        <td>{{ '%.2f'|format(item.line_total) }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+        <!-- Barcode Area (visual representation) -->
+        <div class="receipt-barcode">
+          <div class="barcode-lines"></div>
+          <div class="receipt-invoice-number">{{ invoice.invoice_number }}</div>
+        </div>
 
-  <div class="totals-grid invoice-totals">
-    <div>
-      <h3>Payment Details</h3>
-      <p>
-        <strong>Payment Mode:</strong>
-        {% if invoice.payment_mode %}
-        <span class="badge badge-payment-{{ (invoice.payment_mode or 'OTHER')|lower }}">
-          {{ invoice.payment_mode }}
-        </span>
-        {% else %}
-        -
-        {% endif %}
-      </p>
-
-      {% if invoice.payment_mode == 'CREDIT' %}
-      <form method="post" action="{{ url_for('convert_credit_to_cash', invoice_id=invoice.id) }}"
-        onsubmit="return confirm('Convert this invoice from CREDIT to CASH?');">
-        <button type="submit" class="btn small">Convert CREDIT to CASH</button>
-      </form>
-      {% endif %}
-
-      {% if invoice.payment_reference %}
-      <p><strong>Reference:</strong> {{ invoice.payment_reference }}</p>
-      {% endif %}
-      {% if invoice.notes %}
-      <p><strong>Notes:</strong> {{ invoice.notes }}</p>
-      {% endif %}
-    </div>
-
-    <div class="totals-box">
-      <div class="totals-row">
-        <span>Subtotal:</span>
-        <span>{{ '%.2f'|format(invoice.subtotal or 0) }}</span>
-      </div>
-      <div class="totals-row">
-        <span>Discount:</span>
-        <span>{{ '%.2f'|format(invoice.discount or 0) }}</span>
-      </div>
-      <div class="totals-row">
-        <span>Tax:</span>
-        <span>{{ '%.2f'|format(invoice.tax or 0) }}</span>
-      </div>
-      <div class="totals-row grand-total">
-        <span>Total:</span>
-        <span>{{ '%.2f'|format(invoice.total or 0) }}</span>
+        <div class="receipt-footer">
+          <p>{{ invoice.created_at|format_ist_datetime }}</p>
+          <p class="powered-by">Powered by Managekarlo</p>
+        </div>
       </div>
     </div>
   </div>
 
-  <footer class="invoice-footer">
-    <p>Thank you for shopping at {{ store.store_name or 'R Sanju Store' }}.</p>
-    <p class="powered-by">Powered by BillKaro</p>
-  </footer>
+  <!-- ==================== NORMAL TABLE VIEW ==================== -->
+  <div id="normal-view" class="invoice-content-view">
+    <section class="store-details">
+      <div class="store-header">
+        {% if store.logo_url %}
+        <img src="{{ store.logo_url }}" alt="{{ store.store_name or 'Managekarlo' }}" class="store-logo" />
+        {% else %}
+        <div class="logo-placeholder" style="width: 80px; height: 80px; font-size: 1.5rem;">MK</div>
+        {% endif %}
+        <div class="store-header-text">
+          <h3>{{ store.store_name or 'Managekarlo' }}</h3>
+          {% if store.address %}
+          <p>{{ store.address }}</p>
+          {% endif %}
+          {% if store.phone or store.email %}
+          <p>
+            {% if store.phone %}Phone / WhatsApp: {{ store.phone }}{% endif %}
+            {% if store.phone and store.email %} | {% endif %}
+            {% if store.email %}Email: {{ store.email }}{% endif %}
+          </p>
+          {% endif %}
+        </div>
+      </div>
+    </section>
+
+    <section class="invoice-meta">
+      <div>
+        <p><strong>Invoice Number:</strong> {{ invoice.invoice_number }}</p>
+        <p><strong>Invoice Date:</strong> {{ invoice.invoice_date }}</p>
+        <p><strong>Time (IST):</strong> {{ invoice.created_at|format_ist_time }}</p>
+        <p><strong>Created At:</strong> {{ invoice.created_at|format_ist_datetime }}</p>
+      </div>
+      <div>
+        <p><strong>Customer:</strong> {{ invoice.customer_name or '-' }}</p>
+        {% if invoice.customer_phone %}<p><strong>Phone:</strong> {{ invoice.customer_phone }}</p>{% endif %}
+        {% if invoice.customer_address %}<p><strong>Address:</strong> {{ invoice.customer_address }}</p>{% endif %}
+        {% if invoice.customer_gstin %}<p><strong>GSTIN:</strong> {{ invoice.customer_gstin }}</p>{% endif %}
+      </div>
+    </section>
+
+    <h3>Items</h3>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th>Qty</th>
+          <th>Unit Price</th>
+          <th>Payment Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in invoice['items'] %}
+        <tr>
+          <td>{{ item.description }}</td>
+          <td>{{ item.quantity }}</td>
+          <td>{{ '%.2f'|format(item.unit_price) }}</td>
+          <td>{{ '%.2f'|format(item.line_total) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="totals-grid invoice-totals">
+      <div>
+        <h3>Payment Details</h3>
+        <p>
+          <strong>Payment Mode:</strong>
+          {% if invoice.payment_mode %}
+          <span class="badge badge-payment-{{ (invoice.payment_mode or 'OTHER')|lower }}">
+            {{ invoice.payment_mode }}
+          </span>
+          {% else %}
+          -
+          {% endif %}
+        </p>
+
+        {% if invoice.payment_mode == 'CREDIT' %}
+        <form method="post" action="{{ url_for('convert_credit_to_cash', invoice_id=invoice.id) }}"
+          onsubmit="return confirm('Convert this invoice from CREDIT to CASH?');">
+          <button type="submit" class="btn small">Convert CREDIT to CASH</button>
+        </form>
+        {% endif %}
+
+        {% if invoice.payment_reference %}
+        <p><strong>Reference:</strong> {{ invoice.payment_reference }}</p>
+        {% endif %}
+        {% if invoice.notes %}
+        <p><strong>Notes:</strong> {{ invoice.notes }}</p>
+        {% endif %}
+      </div>
+
+      <div class="totals-box">
+        <div class="totals-row">
+          <span>Subtotal:</span>
+          <span>{{ '%.2f'|format(invoice.subtotal or 0) }}</span>
+        </div>
+        <div class="totals-row">
+          <span>Discount:</span>
+          <span>{{ '%.2f'|format(invoice.discount or 0) }}</span>
+        </div>
+        <div class="totals-row">
+          <span>Tax:</span>
+          <span>{{ '%.2f'|format(invoice.tax or 0) }}</span>
+        </div>
+        <div class="totals-row grand-total">
+          <span>Total:</span>
+          <span>{{ '%.2f'|format(invoice.total or 0) }}</span>
+        </div>
+      </div>
+    </div>
+
+    <footer class="invoice-footer">
+      <p>Thank you for shopping at {{ store.store_name or 'Managekarlo' }}.</p>
+      <p class="powered-by">Powered by Managekarlo</p>
+    </footer>
+  </div>
 </section>
+
+<script>
+  // Toggle between Receipt and Normal views
+  function showReceiptView() {
+    document.getElementById('receipt-view').style.display = 'block';
+    document.getElementById('normal-view').style.display = 'none';
+    document.getElementById('btn-receipt-view').classList.add('active');
+    document.getElementById('btn-normal-view').classList.remove('active');
+    localStorage.setItem('invoiceViewMode', 'receipt');
+  }
+
+  function showNormalView() {
+    document.getElementById('receipt-view').style.display = 'none';
+    document.getElementById('normal-view').style.display = 'block';
+    document.getElementById('btn-receipt-view').classList.remove('active');
+    document.getElementById('btn-normal-view').classList.add('active');
+    localStorage.setItem('invoiceViewMode', 'normal');
+  }
+
+  // Restore preference on page load - Default to Normal view
+  document.addEventListener('DOMContentLoaded', function () {
+    const savedMode = localStorage.getItem('invoiceViewMode');
+    if (savedMode === 'receipt') {
+      showReceiptView();
+    } else {
+      showNormalView();
+    }
+  });
+</script>
 {% endblock %}

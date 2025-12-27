@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{% block title %}R Sanju Store Invoices{% endblock %}</title>
+  <title>{% block title %}Managekarlo - Invoice Management{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
 </head>
 
@@ -13,11 +13,15 @@
     <div class="app-header-left">
       <div class="store-logo">
         {% if store.logo_url %}
-        <img src="{{ store.logo_url }}" alt="{{ store.store_name }}" />
+        <img src="{{ store.logo_url }}" alt="{{ store.store_name or 'Managekarlo' }}" />
+        {% else %}
+        <div class="logo-placeholder">
+          <span>MK</span>
+        </div>
         {% endif %}
       </div>
       <div>
-        <h1 class="store-name">{{ store.store_name or 'R Sanju Store' }}</h1>
+        <h1 class="store-name">{{ store.store_name or 'Managekarlo' }}</h1>
         {% if store.address %}
         <p class="store-address">{{ store.address }}</p>
         {% endif %}

@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Reports - R Sanju Store{% endblock %}
+{% block title %}Reports - Managekarlo{% endblock %}
 
 {% block content %}
 <section class="page">
@@ -14,8 +14,8 @@
         <label>
           Report Type
           <select name="period">
-            <option value="daily" {% if period == 'daily' %}selected{% endif %}>Daily</option>
-            <option value="monthly" {% if period == 'monthly' %}selected{% endif %}>Monthly</option>
+            <option value="daily" {% if period=='daily' %}selected{% endif %}>Daily</option>
+            <option value="monthly" {% if period=='monthly' %}selected{% endif %}>Monthly</option>
           </select>
         </label>
       </div>
@@ -34,7 +34,9 @@
     </div>
     <div class="form-actions">
       <button class="btn primary" type="submit">Update Report</button>
-      <a class="btn" href="{{ url_for('export_report', period=period, date=selected_date, month=selected_month) }}">Export to Excel</a>
+      <a class="btn"
+        href="{{ url_for('export_report', period=period, date=selected_date, month=selected_month) }}">Export to
+        Excel</a>
     </div>
   </form>
 
@@ -69,58 +71,58 @@
   <section style="margin-top: 1.5rem;">
     <h3>Invoices in this period</h3>
     {% if report.invoices %}
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Invoice #</th>
-            <th>Date</th>
-            <th>Customer</th>
-            <th class="text-right">Total</th>
-            <th>Payment</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for inv in report.invoices %}
-            <tr>
-              <td>{{ inv.invoice_number }}</td>
-              <td>{{ inv.invoice_date }}</td>
-              <td>{{ inv.customer_name or '-' }}</td>
-              <td class="text-right">{{ '%.2f'|format(inv.total or 0) }}</td>
-              <td>{{ inv.payment_mode or '-' }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Invoice #</th>
+          <th>Date</th>
+          <th>Customer</th>
+          <th class="text-right">Total</th>
+          <th>Payment</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for inv in report.invoices %}
+        <tr>
+          <td>{{ inv.invoice_number }}</td>
+          <td>{{ inv.invoice_date }}</td>
+          <td>{{ inv.customer_name or '-' }}</td>
+          <td class="text-right">{{ '%.2f'|format(inv.total or 0) }}</td>
+          <td>{{ inv.payment_mode or '-' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
     {% else %}
-      <p>No invoices for this period.</p>
+    <p>No invoices for this period.</p>
     {% endif %}
   </section>
 
   <section style="margin-top: 1.5rem;">
     <h3>Expenses in this period</h3>
     {% if report.expenses %}
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Description</th>
-            <th>Category</th>
-            <th class="text-right">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for exp in report.expenses %}
-            <tr>
-              <td>{{ exp.date }}</td>
-              <td>{{ exp.description }}</td>
-              <td>{{ exp.category or '-' }}</td>
-              <td class="text-right">{{ '%.2f'|format(exp.amount or 0) }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Description</th>
+          <th>Category</th>
+          <th class="text-right">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for exp in report.expenses %}
+        <tr>
+          <td>{{ exp.date }}</td>
+          <td>{{ exp.description }}</td>
+          <td>{{ exp.category or '-' }}</td>
+          <td class="text-right">{{ '%.2f'|format(exp.amount or 0) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
     {% else %}
-      <p>No expenses for this period.</p>
+    <p>No expenses for this period.</p>
     {% endif %}
   </section>
 </section>

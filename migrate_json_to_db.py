@@ -88,7 +88,7 @@ def migrate_data(json_file='data.json', app_config='default'):
                 if not settings:
                     settings = StoreSettings(
                         user_id=user_id,
-                        store_name=settings_data.get("store_name", "R Sanju Store"),
+                        store_name=settings_data.get("store_name", "Managekarlo"),
                         address=settings_data.get("address", ""),
                         phone=settings_data.get("phone", ""),
                         email=settings_data.get("email", ""),

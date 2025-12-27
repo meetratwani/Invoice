@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+
+{% block title %}Register - Managekarlo{% endblock %}
+
+{% block content %}
+<section class="page" style="max-width: 500px; margin: 4rem auto;">
+    <div class="page-header">
+        <h2 style="text-align:center;">Create Your Store Account</h2>
+        {% if not firebase_enabled %}
+        <p style="text-align:center; color:#f59e0b; font-size:0.9rem;">⚠ Running in local mode (Firebase not configured)
+        </p>
+        {% endif %}
+    </div>
+
+    <form method="post" class="form" id="register-form">
+        <input type="hidden" name="id_token" id="id-token" />
+
+        <div class="form-grid">
+            <label>
+                Store Name
+                <input type="text" name="store_name" id="store-name" required placeholder="My Store" />
+            </label>
+
+            <label>
+                Email
+                <input type="email" name="email" id="email" required autofocus placeholder="your@email.com" />
+            </label>
+
+            <label>
+                Password
+                <input type="password" name="password" id="password" required minlength="6"
+                    placeholder="At least 6 characters" />
+            </label>
+
+            <label>
+                Confirm Password
+                <input type="password" name="confirm_password" id="confirm-password" required />
+            </label>
+        </div>
+
+        <div class="form-actions"
+            style="justify-content:center; margin-top: 1.5rem; flex-direction: column; gap: 0.75rem;">
+            <button type="submit" class="btn primary full-width" id="register-btn">Create Account</button>
+            <p style="text-align:center; margin:0;">
+                Already have an account? <a href="{{ url_for('login') }}"
+                    style="color:#01060d; text-decoration:none;">Login here</a>
+            </p>
+        </div>
+    </form>
+</section>
+
+{% if firebase_enabled %}
+<script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+    import { getAuth, createUserWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+
+    // TODO: Replace with your Firebase config
+    const firebaseConfig = {
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+        projectId: "YOUR_PROJECT_ID",
+        storageBucket: "YOUR_PROJECT_ID.appspot.com",
+        messagingSenderId: "YOUR_SENDER_ID",
+        appId: "YOUR_APP_ID"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    const form = document.getElementById('register-form');
+    const registerBtn = document.getElementById('register-btn');
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const confirmPassword = document.getElementById('confirm-password').value;
+        const storeName = document.getElementById('store-name').value;
+
+        if (password !== confirmPassword) {
+            alert('Passwords do not match!');
+            return;
+        }
+
+        registerBtn.disabled = true;
+        registerBtn.textContent = 'Creating account...';
+
+        try {
+            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            const idToken = await userCredential.user.getIdToken();
+
+            // Set the token in the hidden field
+            document.getElementById('id-token').value = idToken;
+
+            // Submit the form to backend
+            form.submit();
+        } catch (error) {
+            console.error('Registration error:', error);
+            alert('Registration failed: ' + error.message);
+            registerBtn.disabled = false;
+            registerBtn.textContent = 'Create Account';
+        }
+    });
+</script>
+{% else %}
+<script>
+    // Local mode - just validate passwords match
+    const localForm = document.getElementById('register-form');
+    localForm.addEventListener('submit', (e) => {
+        const password = document.getElementById('password').value;
+        const confirmPassword = document.getElementById('confirm-password').value;
+
+        if (password !== confirmPassword) {
+            e.preventDefault();
+            alert('Passwords do not match!');
+        }
+    });
+</script>
+{% endif %}
+{% endblock %}

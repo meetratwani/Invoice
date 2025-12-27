@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Invoices - R Sanju Store{% endblock %}
+{% block title %}Invoices - Managekarlo{% endblock %}
 
 {% block content %}
 <section class="page">
@@ -8,20 +8,11 @@
     <h2>Invoices</h2>
     <div>
       <form method="get" class="invoice-search-form">
-        <input
-          type="text"
-          name="phone"
-          placeholder="Search by phone number"
-          value="{{ search_phone or '' }}"
-        />
-        <input
-          type="date"
-          name="date"
-          value="{{ search_date or '' }}"
-        />
+        <input type="text" name="phone" placeholder="Search by phone number" value="{{ search_phone or '' }}" />
+        <input type="date" name="date" value="{{ search_date or '' }}" />
         <button type="submit" class="btn small">Search</button>
         {% if search_phone or search_date %}
-          <a href="{{ url_for('invoice_list') }}" class="btn small">Clear</a>
+        <a href="{{ url_for('invoice_list') }}" class="btn small">Clear</a>
         {% endif %}
       </form>
       <a class="btn" href="{{ url_for('export_invoices') }}">Export to Excel</a>
@@ -30,45 +21,46 @@
   </div>
 
   {% if invoices %}
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Invoice #</th>
-          <th>Date &amp; Time</th>
-          <th>Customer</th>
-          <th class="text-right">Total</th>
-          <th>Payment</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for inv in invoices %}
-          <tr>
-            <td>{{ inv.invoice_number }}</td>
-            <td>{{ inv.created_at }}</td>
-            <td>{{ inv.customer_name or '-' }}</td>
-            <td class="text-right">{{ '%.2f'|format(inv.total or 0) }}</td>
-            <td>
-              {% if inv.payment_mode %}
-                <span class="badge badge-payment-{{ (inv.payment_mode or 'OTHER')|lower }}">
-                  {{ inv.payment_mode }}
-                </span>
-              {% else %}
-                -
-              {% endif %}
-            </td>
-          <td>
-              <a class="btn small" href="{{ url_for('invoice_view', invoice_id=inv.id) }}">View</a>
-              <form method="post" action="{{ url_for('delete_invoice', invoice_id=inv.id) }}" style="display: inline" onsubmit="return confirm('Are you sure you want to delete this invoice?');">
-                <button type="submit" class="btn small danger">Delete</button>
-              </form>
-            </td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Invoice #</th>
+        <th>Date &amp; Time</th>
+        <th>Customer</th>
+        <th class="text-right">Total</th>
+        <th>Payment</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for inv in invoices %}
+      <tr>
+        <td>{{ inv.invoice_number }}</td>
+        <td>{{ inv.created_at }}</td>
+        <td>{{ inv.customer_name or '-' }}</td>
+        <td class="text-right">{{ '%.2f'|format(inv.total or 0) }}</td>
+        <td>
+          {% if inv.payment_mode %}
+          <span class="badge badge-payment-{{ (inv.payment_mode or 'OTHER')|lower }}">
+            {{ inv.payment_mode }}
+          </span>
+          {% else %}
+          -
+          {% endif %}
+        </td>
+        <td>
+          <a class="btn small" href="{{ url_for('invoice_view', invoice_id=inv.id) }}">View</a>
+          <form method="post" action="{{ url_for('delete_invoice', invoice_id=inv.id) }}" style="display: inline"
+            onsubmit="return confirm('Are you sure you want to delete this invoice?');">
+            <button type="submit" class="btn small danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
   {% else %}
-    <p>No invoices yet. <a href="{{ url_for('new_invoice') }}">Create your first invoice</a>.</p>
+  <p>No invoices yet. <a href="{{ url_for('new_invoice') }}">Create your first invoice</a>.</p>
   {% endif %}
 </section>
 {% endblock %}

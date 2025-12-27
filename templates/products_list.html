@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Products - R Sanju Store{% endblock %}
+{% block title %}Products - Managekarlo{% endblock %}
 
 {% block content %}
 <section class="page">
@@ -10,61 +10,58 @@
   </div>
 
   <form method="get" class="form-inline" style="margin-bottom: 1rem; gap: 0.5rem; display: flex; flex-wrap: wrap;">
-    <input
-      type="text"
-      name="q"
-      placeholder="Search by name / SKU / barcode"
-      value="{{ request.args.get('q', '') }}"
-    />
+    <input type="text" name="q" placeholder="Search by name / SKU / barcode" value="{{ request.args.get('q', '') }}" />
     <select name="stock_status">
       <option value="">All stock</option>
-      <option value="in_stock" {% if request.args.get('stock_status') == 'in_stock' %}selected{% endif %}>In stock</option>
-      <option value="low" {% if request.args.get('stock_status') == 'low' %}selected{% endif %}>Low stock</option>
+      <option value="in_stock" {% if request.args.get('stock_status')=='in_stock' %}selected{% endif %}>In stock
+      </option>
+      <option value="low" {% if request.args.get('stock_status')=='low' %}selected{% endif %}>Low stock</option>
     </select>
     <button type="submit" class="btn">Filter</button>
   </form>
 
   {% if products %}
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>SKU</th>
-          <th>Barcode</th>
-          <th>Category</th>
-          <th>Stock</th>
-          <th>Min level</th>
-          <th>Unit Price</th>
-          <th>Cost Price</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for p in products %}
-          {% set qty = (p.stock_quantity or 0) | float %}
-          {% set min_lvl = (p.min_stock_level or 0) | float %}
-          <tr class="{% if qty <= min_lvl %}low-stock{% endif %}">
-            <td>{{ p.name }}</td>
-            <td>{{ p.sku }}</td>
-            <td>{{ p.barcode }}</td>
-            <td>{{ p.category }}</td>
-            <td>{{ '%.2f'|format(qty) }}</td>
-            <td>{{ '%.2f'|format(min_lvl) }}</td>
-            <td>{{ '%.2f'|format(p.unit_price or 0) }}</td>
-            <td>{{ '%.2f'|format(p.cost_price or 0) }}</td>
-            <td>
-              <a href="{{ url_for('product_edit', product_id=p.id) }}" class="btn small">Edit</a>
-              <a href="{{ url_for('product_barcode', product_id=p.id) }}" class="btn small">Barcode</a>
-              <form method="post" action="{{ url_for('product_delete', product_id=p.id) }}" style="display:inline" onsubmit="return confirm('Delete this product?');">
-                <button type="submit" class="btn small danger">Delete</button>
-              </form>
-            </td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>SKU</th>
+        <th>Barcode</th>
+        <th>Category</th>
+        <th>Stock</th>
+        <th>Min level</th>
+        <th>Unit Price</th>
+        <th>Cost Price</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in products %}
+      {% set qty = (p.stock_quantity or 0) | float %}
+      {% set min_lvl = (p.min_stock_level or 0) | float %}
+      <tr class="{% if qty <= min_lvl %}low-stock{% endif %}">
+        <td>{{ p.name }}</td>
+        <td>{{ p.sku }}</td>
+        <td>{{ p.barcode }}</td>
+        <td>{{ p.category }}</td>
+        <td>{{ '%.2f'|format(qty) }}</td>
+        <td>{{ '%.2f'|format(min_lvl) }}</td>
+        <td>{{ '%.2f'|format(p.unit_price or 0) }}</td>
+        <td>{{ '%.2f'|format(p.cost_price or 0) }}</td>
+        <td>
+          <a href="{{ url_for('product_edit', product_id=p.id) }}" class="btn small">Edit</a>
+          <a href="{{ url_for('product_barcode', product_id=p.id) }}" class="btn small">Barcode</a>
+          <form method="post" action="{{ url_for('product_delete', product_id=p.id) }}" style="display:inline"
+            onsubmit="return confirm('Delete this product?');">
+            <button type="submit" class="btn small danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
   {% else %}
-    <p>No products found. <a href="{{ url_for('product_new') }}">Create your first product</a>.</p>
+  <p>No products found. <a href="{{ url_for('product_new') }}">Create your first product</a>.</p>
   {% endif %}
 </section>
 {% endblock %}

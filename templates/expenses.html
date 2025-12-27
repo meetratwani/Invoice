@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Expenses - R Sanju Store{% endblock %}
+{% block title %}Expenses - Managekarlo{% endblock %}
 
 {% block content %}
 <section class="page">
@@ -43,28 +43,28 @@
 
   <h3>Recent Expenses</h3>
   {% if expenses %}
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Date</th>
-          <th>Description</th>
-          <th>Category</th>
-          <th class="text-right">Amount</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for exp in expenses %}
-          <tr>
-            <td>{{ exp.date }}</td>
-            <td>{{ exp.description }}</td>
-            <td>{{ exp.category or '-' }}</td>
-            <td class="text-right">{{ '%.2f'|format(exp.amount or 0) }}</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Description</th>
+        <th>Category</th>
+        <th class="text-right">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for exp in expenses %}
+      <tr>
+        <td>{{ exp.date }}</td>
+        <td>{{ exp.description }}</td>
+        <td>{{ exp.category or '-' }}</td>
+        <td class="text-right">{{ '%.2f'|format(exp.amount or 0) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
   {% else %}
-    <p>No expenses recorded yet.</p>
+  <p>No expenses recorded yet.</p>
   {% endif %}
 </section>
 {% endblock %}
