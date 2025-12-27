@@ -315,9 +315,27 @@
       html5QrCode = new Html5Qrcode('barcode-reader');
     }
 
+    // Optimized config for faster barcode recognition
     const config = {
-      fps: 10,
-      qrbox: { width: 250, height: 250 },
+      fps: 20,  // Increased from 10 for faster scanning
+      qrbox: { width: 300, height: 150 },  // Wider box, better for barcodes
+      aspectRatio: 1.7777778,  // 16:9 aspect ratio for better camera view
+      disableFlip: false,
+      // Focus on common retail barcode formats for faster processing
+      formatsToSupport: [
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.UPC_A,
+        Html5QrcodeSupportedFormats.UPC_E,
+        Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.CODE_39,
+        Html5QrcodeSupportedFormats.CODE_93,
+        Html5QrcodeSupportedFormats.ITF,
+        Html5QrcodeSupportedFormats.QR_CODE,
+      ],
+      experimentalFeatures: {
+        useBarCodeDetectorIfSupported: true  // Use native API if available (much faster)
+      }
     };
 
     scanStatusEl.textContent = 'Starting camera...';
@@ -336,19 +354,33 @@
 
         if (product) {
           addRow(product);
-          scanStatusEl.textContent = `Added: ${product.name}`;
+          scanStatusEl.textContent = `✓ Added: ${product.name}`;
           scanStatusEl.style.color = '#10b981';
+
+          // Play a short beep sound for feedback (optional)
+          try {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            oscillator.frequency.value = 800;
+            oscillator.type = 'sine';
+            gainNode.gain.value = 0.1;
+            oscillator.start();
+            setTimeout(() => oscillator.stop(), 100);
+          } catch (e) { /* Audio not supported */ }
         } else {
-          scanStatusEl.textContent = `Not found: ${text}`;
+          scanStatusEl.textContent = `✗ Not found: ${text}`;
           scanStatusEl.style.color = '#ef4444';
         }
       },
       () => {
-        // Ignore scan errors
+        // Ignore scan errors (expected when no barcode in frame)
       }
     ).then(() => {
       scannerRunning = true;
-      scanStatusEl.textContent = 'Scanning... Point at barcode';
+      scanStatusEl.textContent = '📷 Scanning... Point camera at barcode';
       scanStatusEl.style.color = '#3b82f6';
     }).catch((err) => {
       scanStatusEl.textContent = `Camera error: ${err}`;
