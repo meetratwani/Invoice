@@ -15,9 +15,7 @@
         {% if store.logo_url %}
         <img src="{{ store.logo_url }}" alt="{{ store.store_name or 'Managekarlo' }}" />
         {% else %}
-        <div class="logo-placeholder">
-          <span>MK</span>
-        </div>
+        <img src="{{ url_for('static', filename='images/managekarlo-logo.png') }}" alt="Managekarlo" />
         {% endif %}
       </div>
       <div>

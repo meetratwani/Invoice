@@ -528,7 +528,9 @@ def new_invoice():
     
     today = now_ist().strftime("%Y-%m-%d")
     products = get_products()
-    return render_template("new_invoice.html", store=store, today=today, products=products)
+    # Convert products to dictionaries for JSON serialization in template
+    products_data = [p.to_dict() for p in products]
+    return render_template("new_invoice.html", store=store, today=today, products=products_data)
 
 
 @app.route("/invoice/<int:invoice_id>")

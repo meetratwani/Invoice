@@ -34,7 +34,8 @@
             {% if store.logo_url %}
             <img src="{{ store.logo_url }}" alt="{{ store.store_name or 'Managekarlo' }}" class="receipt-logo" />
             {% else %}
-            <div class="receipt-logo-placeholder">MK</div>
+            <img src="{{ url_for('static', filename='images/managekarlo-logo.png') }}" alt="Managekarlo"
+              class="receipt-logo" />
             {% endif %}
           </div>
           <div class="receipt-store-name">{{ store.store_name or 'Managekarlo' }}</div>
@@ -170,7 +171,8 @@
         {% if store.logo_url %}
         <img src="{{ store.logo_url }}" alt="{{ store.store_name or 'Managekarlo' }}" class="store-logo" />
         {% else %}
-        <div class="logo-placeholder" style="width: 80px; height: 80px; font-size: 1.5rem;">MK</div>
+        <img src="{{ url_for('static', filename='images/managekarlo-logo.png') }}" alt="Managekarlo" class="store-logo"
+          style="width: 80px; height: 80px; object-fit: contain;" />
         {% endif %}
         <div class="store-header-text">
           <h3>{{ store.store_name or 'Managekarlo' }}</h3>

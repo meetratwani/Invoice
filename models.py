@@ -83,6 +83,22 @@ class Product(db.Model):
     
     def __repr__(self):
         return f'<Product {self.name} ({self.sku})>'
+    
+    def to_dict(self):
+        """Convert product to JSON-serializable dictionary."""
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description or '',
+            'sku': self.sku,
+            'barcode': self.barcode or '',
+            'category': self.category or '',
+            'brand': self.brand or '',
+            'unit_price': self.unit_price,
+            'cost_price': self.cost_price,
+            'stock_quantity': self.stock_quantity,
+            'min_stock_level': self.min_stock_level,
+        }
 
 
 class Supplier(db.Model):
