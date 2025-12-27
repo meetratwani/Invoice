@@ -192,7 +192,13 @@ def save_store_settings(data: dict, logo_file=None) -> None:
 
 
 def generate_invoice_number() -> str:
-    """Generate incremental invoice number: RS-<year>-0001 style."""
+    """Generate globally unique invoice number: RS-<user_hash>-<year>-0001 style.
+    
+    Uses a 4-char hash of user_id to ensure uniqueness across all users.
+    Includes retry logic as a safety net.
+    """
+    import hashlib
+    
     user_id = get_current_user_id()
     settings = StoreSettings.query.filter_by(user_id=user_id).first()
     
@@ -201,11 +207,29 @@ def generate_invoice_number() -> str:
         settings = StoreSettings(user_id=user_id, store_name="Managekarlo")
         db.session.add(settings)
     
+    # Create a short unique hash from user_id (4 uppercase chars)
+    user_hash = hashlib.md5(user_id.encode()).hexdigest()[:4].upper()
+    year = now_ist().year
+    
+    # Retry logic in case of any edge conflicts
+    max_retries = 10
+    for attempt in range(max_retries):
+        settings.invoice_counter += 1
+        invoice_number = f"RS-{user_hash}-{year}-{settings.invoice_counter:04d}"
+        
+        # Check if this invoice number already exists
+        from models import Invoice
+        existing = Invoice.query.filter_by(invoice_number=invoice_number).first()
+        if not existing:
+            db.session.commit()
+            return invoice_number
+    
+    # Fallback: use timestamp to guarantee uniqueness
+    import time
     settings.invoice_counter += 1
     db.session.commit()
-    
-    year = now_ist().year
-    return f"RS-{year}-{settings.invoice_counter:04d}"
+    timestamp = int(time.time())
+    return f"RS-{user_hash}-{year}-{timestamp}"
 
 
 
