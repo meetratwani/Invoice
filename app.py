@@ -252,7 +252,7 @@ def create_product(data: dict) -> Product:
     user_id = get_current_user_id()
     user = get_or_create_user(user_id)
     
-    sku = data.get("sku", "").strip() or f"SKU-{now_ist().timestamp()}"
+    sku = data.get("sku", "").strip() or f"SKU-{int(now_ist().timestamp())}"
     barcode = data.get("barcode", "").strip() or sku
     
     product = Product(

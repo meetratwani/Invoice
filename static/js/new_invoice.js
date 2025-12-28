@@ -329,7 +329,7 @@
     modal.innerHTML = `
       <div class="modal-content">
         <h3 class="modal-title">
-          <span>📱</span> Manual Barcode Entry
+          Manual Barcode Entry
         </h3>
         <p class="modal-description">
           Camera scanning is unavailable. Please enter the barcode number manually found below the barcode lines.
@@ -370,7 +370,7 @@
           const toast = document.createElement('div');
           toast.textContent = `Added: ${product.name}`;
           toast.style.cssText = `
-            position: fixed; bottom: 20px; right: 20px; background: #10b981; color: white;
+            position: fixed; bottom: 20px; right: 20px; background: #333; color: white;
             padding: 1rem 2rem; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             animation: slideUp 0.3s ease-out; z-index: 10000;
           `;
@@ -434,8 +434,8 @@
       }
     };
 
-    scanStatusEl.textContent = '🔄 Starting camera...';
-    scanStatusEl.style.color = '#3b82f6';
+    scanStatusEl.textContent = 'Starting camera...';
+    scanStatusEl.style.color = '#333';
     cameraAttempted = true;
 
     // Check if any camera is available
@@ -443,12 +443,12 @@
       if (!devices || devices.length === 0) {
         cameraAvailable = false;
         scanStatusEl.innerHTML = `
-          <div style="color: #ef4444; margin-bottom: 1rem;">❌ No camera found on this device</div>
-          <button type="button" id="fallback-manual-entry" 
-                  style="padding: 0.75rem 1.5rem; background: #333; color: white; border: none; cursor: pointer;">
-            Enter Barcode Manually
-          </button>
-        `;
+            <div style="color: #333; margin-bottom: 1rem;">No camera found on this device</div>
+              <button type="button" id="fallback-manual-entry"
+                style="padding: 0.75rem 1.5rem; background: #333; color: white; border: none; cursor: pointer;">
+                Enter Barcode Manually
+              </button>
+          `;
         document.getElementById('fallback-manual-entry')?.addEventListener('click', () => {
           closeCameraScanner();
           showManualBarcodeEntry();
@@ -475,8 +475,8 @@
 
           if (product) {
             addRow(product);
-            scanStatusEl.textContent = `✅ Added: ${product.name}`;
-            scanStatusEl.style.color = '#10b981';
+            scanStatusEl.textContent = `Added: ${product.name} `;
+            scanStatusEl.style.color = '#333';
 
             // Play success beep
             try {
@@ -495,13 +495,13 @@
             // Reset status after 2 seconds
             setTimeout(() => {
               if (scannerRunning) {
-                scanStatusEl.textContent = '📷 Ready to scan next barcode...';
-                scanStatusEl.style.color = '#3b82f6';
+                scanStatusEl.textContent = 'Ready to scan next barcode...';
+                scanStatusEl.style.color = '#333';
               }
             }, 2000);
           } else {
-            scanStatusEl.textContent = `❌ Not found: ${text}`;
-            scanStatusEl.style.color = '#ef4444';
+            scanStatusEl.textContent = `Not found: ${text} `;
+            scanStatusEl.style.color = '#333';
           }
         },
         () => {
@@ -511,14 +511,14 @@
         scannerRunning = true;
         cameraAvailable = true;
         scanStatusEl.innerHTML = `
-          <div style="color: #3b82f6;">📷 Scanning... Point camera at barcode</div>
-          <small style="color: #666; display: block; margin-top: 0.5rem;">Tip: Hold the barcode steady, ensure good lighting</small>
-        `;
+          <div style="color: #333;">Scanning... Point camera at barcode</div>
+              <small style="color: #666; display: block; margin-top: 0.5rem;">Tip: Hold the barcode steady, ensure good lighting</small>
+          `;
       }).catch((err) => {
         cameraAvailable = false;
         console.error('Camera error:', err);
         scanStatusEl.innerHTML = `
-          <div style="color: #ef4444; margin-bottom: 1rem;">⚠️ Camera access denied or unavailable</div>
+          <div style="color: #333; margin-bottom: 1rem;">Camera access denied or unavailable</div>
           <div style="color: #666; font-size: 0.9rem; margin-bottom: 1rem;">
             Please allow camera access or use manual entry.
           </div>
@@ -526,7 +526,7 @@
                   style="padding: 0.75rem 1.5rem; background: #333; color: white; border: none; cursor: pointer;">
             Enter Barcode Manually
           </button>
-        `;
+          `;
         document.getElementById('fallback-manual-entry')?.addEventListener('click', () => {
           closeCameraScanner();
           showManualBarcodeEntry();
@@ -535,12 +535,12 @@
     }).catch((err) => {
       cameraAvailable = false;
       scanStatusEl.innerHTML = `
-        <div style="color: #ef4444; margin-bottom: 1rem;">❌ Cannot access camera: ${err}</div>
-        <button type="button" id="fallback-manual-entry" 
+        <div style="color: #333; margin-bottom: 1rem;">Cannot access camera: ${err}</div>
+              <button type="button" id="fallback-manual-entry"
                 style="padding: 0.75rem 1.5rem; background: #333; color: white; border: none; cursor: pointer;">
-          Enter Barcode Manually
-        </button>
-      `;
+                Enter Barcode Manually
+              </button>
+          `;
       document.getElementById('fallback-manual-entry')?.addEventListener('click', () => {
         closeCameraScanner();
         showManualBarcodeEntry();
@@ -583,27 +583,27 @@
   // Add CSS animations
   const style = document.createElement('style');
   style.textContent = `
-    @keyframes slideIn {
+          @keyframes slideIn {
       from {
-        opacity: 0;
-        transform: translateY(-10px);
-      }
+              opacity: 0;
+              transform: translateY(-10px);
+            }
       to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-    @keyframes slideOut {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+          @keyframes slideOut {
       from {
-        opacity: 1;
-        transform: translateX(0);
-      }
+              opacity: 1;
+              transform: translateX(0);
+            }
       to {
-        opacity: 0;
-        transform: translateX(20px);
-      }
-    }
-  `;
+              opacity: 0;
+              transform: translateX(20px);
+            }
+          }
+          `;
   document.head.appendChild(style);
 
   // Initialize
