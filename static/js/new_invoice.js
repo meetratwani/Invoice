@@ -290,15 +290,19 @@
   }
 
   // --- Camera Scanner (Optional) ---
+  let cameraAttempted = false;
+  let cameraAvailable = true;
+
   function openCameraScanner() {
     if (!scanModal) return;
     if (!window.Html5Qrcode) {
-      alert('Barcode scanner library not loaded. Please refresh the page.');
+      // Show manual entry instead
+      showManualBarcodeEntry();
       return;
     }
 
     scanModal.hidden = false;
-    scanModal.style.display = 'block'; // Inline block
+    scanModal.style.display = 'block';
     startScanner();
   }
 
@@ -307,6 +311,100 @@
     stopScanner().finally(() => {
       scanModal.hidden = true;
       scanModal.style.display = 'none';
+      // Reset manual entry if present
+      const manualEntry = document.getElementById('manual-barcode-entry');
+      if (manualEntry) manualEntry.remove();
+    });
+  }
+
+  function showManualBarcodeEntry() {
+    // Create manual barcode entry modal using classes
+    const existingModal = document.getElementById('manual-barcode-modal');
+    if (existingModal) existingModal.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'manual-barcode-modal';
+    modal.className = 'modal-backdrop';
+
+    modal.innerHTML = `
+      <div class="modal-content">
+        <h3 class="modal-title">
+          <span>📱</span> Manual Barcode Entry
+        </h3>
+        <p class="modal-description">
+          Camera scanning is unavailable. Please enter the barcode number manually found below the barcode lines.
+        </p>
+        <input type="text" id="manual-barcode-input" class="modal-input" 
+               placeholder="Enter barcode number" autocomplete="off" />
+        <div class="modal-actions">
+          <button type="button" id="manual-barcode-cancel" class="modal-btn modal-btn-secondary">Cancel</button>
+          <button type="button" id="manual-barcode-submit" class="modal-btn modal-btn-primary">Add Product</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    const input = document.getElementById('manual-barcode-input');
+    const cancelBtn = document.getElementById('manual-barcode-cancel');
+    const submitBtn = document.getElementById('manual-barcode-submit');
+
+    // Focus immediately
+    setTimeout(() => input.focus(), 50);
+
+    const handleSubmit = () => {
+      const barcode = input.value.trim();
+      if (barcode) {
+        // Try to match by barcode (exact), sku (exact), or name (fuzzy)
+        const product = products.find(p =>
+          (p.barcode || '').trim() === barcode ||
+          (p.sku || '').trim() === barcode ||
+          (p.barcode || '').trim().toLowerCase() === barcode.toLowerCase() ||
+          (p.sku || '').trim().toLowerCase() === barcode.toLowerCase()
+        );
+
+        if (product) {
+          addRow(product);
+          modal.remove();
+
+          // Show success feedback globally
+          const toast = document.createElement('div');
+          toast.textContent = `Added: ${product.name}`;
+          toast.style.cssText = `
+            position: fixed; bottom: 20px; right: 20px; background: #10b981; color: white;
+            padding: 1rem 2rem; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            animation: slideUp 0.3s ease-out; z-index: 10000;
+          `;
+          document.body.appendChild(toast);
+          setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 300);
+          }, 3000);
+
+          if (quickAddInput) quickAddInput.focus();
+        } else {
+          input.style.borderColor = '#ef4444';
+          input.classList.remove('shake');
+          const _ = input.offsetWidth; // force reflow
+          input.classList.add('shake');
+
+          // Temporary error feedback
+          const originalPlaceholder = input.placeholder;
+          input.value = '';
+          input.placeholder = 'Product not found!';
+          setTimeout(() => input.placeholder = originalPlaceholder, 1500);
+        }
+      }
+    };
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') handleSubmit();
+      if (e.key === 'Escape') modal.remove();
+    });
+
+    cancelBtn.addEventListener('click', () => modal.remove());
+    submitBtn.addEventListener('click', handleSubmit);
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) modal.remove();
     });
   }
 
@@ -315,76 +413,138 @@
       html5QrCode = new Html5Qrcode('barcode-reader');
     }
 
-    // Optimized config for faster barcode recognition
+    // Optimized config - simpler formats are easier to scan
     const config = {
-      fps: 20,  // Increased from 10 for faster scanning
-      qrbox: { width: 300, height: 150 },  // Wider box, better for barcodes
-      aspectRatio: 1.7777778,  // 16:9 aspect ratio for better camera view
+      fps: 15,  // Slightly lower for stability
+      qrbox: { width: 280, height: 120 },  // Optimized for 1D barcodes
+      aspectRatio: 1.5,
       disableFlip: false,
-      // Focus on common retail barcode formats for faster processing
+      // Support both simple and complex formats
       formatsToSupport: [
-        Html5QrcodeSupportedFormats.EAN_13,
-        Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.QR_CODE,      // QR codes are easiest to scan
+        Html5QrcodeSupportedFormats.EAN_13,       // Standard retail barcode
+        Html5QrcodeSupportedFormats.EAN_8,        // Shorter retail barcode
+        Html5QrcodeSupportedFormats.CODE_39,      // Simple alphanumeric
+        Html5QrcodeSupportedFormats.CODE_128,     // Full ASCII (complex)
         Html5QrcodeSupportedFormats.UPC_A,
         Html5QrcodeSupportedFormats.UPC_E,
-        Html5QrcodeSupportedFormats.CODE_128,
-        Html5QrcodeSupportedFormats.CODE_39,
-        Html5QrcodeSupportedFormats.CODE_93,
-        Html5QrcodeSupportedFormats.ITF,
-        Html5QrcodeSupportedFormats.QR_CODE,
       ],
       experimentalFeatures: {
-        useBarCodeDetectorIfSupported: true  // Use native API if available (much faster)
+        useBarCodeDetectorIfSupported: true
       }
     };
 
-    scanStatusEl.textContent = 'Starting camera...';
+    scanStatusEl.textContent = '🔄 Starting camera...';
     scanStatusEl.style.color = '#3b82f6';
+    cameraAttempted = true;
 
-    html5QrCode.start(
-      { facingMode: 'environment' },
-      config,
-      (decodedText) => {
-        const text = decodedText.trim();
-        if (!text) return;
-
-        const product = products.find(p =>
-          (p.barcode || '').trim() === text || (p.sku || '').trim() === text
-        );
-
-        if (product) {
-          addRow(product);
-          scanStatusEl.textContent = `✓ Added: ${product.name}`;
-          scanStatusEl.style.color = '#10b981';
-
-          // Play a short beep sound for feedback (optional)
-          try {
-            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-            oscillator.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-            oscillator.frequency.value = 800;
-            oscillator.type = 'sine';
-            gainNode.gain.value = 0.1;
-            oscillator.start();
-            setTimeout(() => oscillator.stop(), 100);
-          } catch (e) { /* Audio not supported */ }
-        } else {
-          scanStatusEl.textContent = `✗ Not found: ${text}`;
-          scanStatusEl.style.color = '#ef4444';
-        }
-      },
-      () => {
-        // Ignore scan errors (expected when no barcode in frame)
+    // Check if any camera is available
+    Html5Qrcode.getCameras().then((devices) => {
+      if (!devices || devices.length === 0) {
+        cameraAvailable = false;
+        scanStatusEl.innerHTML = `
+          <div style="color: #ef4444; margin-bottom: 1rem;">❌ No camera found on this device</div>
+          <button type="button" id="fallback-manual-entry" 
+                  style="padding: 0.75rem 1.5rem; background: #333; color: white; border: none; cursor: pointer;">
+            Enter Barcode Manually
+          </button>
+        `;
+        document.getElementById('fallback-manual-entry')?.addEventListener('click', () => {
+          closeCameraScanner();
+          showManualBarcodeEntry();
+        });
+        return;
       }
-    ).then(() => {
-      scannerRunning = true;
-      scanStatusEl.textContent = '📷 Scanning... Point camera at barcode';
-      scanStatusEl.style.color = '#3b82f6';
+
+      // Use the first available camera (prefer back camera)
+      const backCamera = devices.find(d => d.label.toLowerCase().includes('back')) || devices[0];
+
+      html5QrCode.start(
+        backCamera.id,
+        config,
+        (decodedText) => {
+          const text = decodedText.trim();
+          if (!text) return;
+
+          const product = products.find(p =>
+            (p.barcode || '').trim() === text ||
+            (p.sku || '').trim() === text ||
+            (p.barcode || '').trim().toLowerCase() === text.toLowerCase() ||
+            (p.sku || '').trim().toLowerCase() === text.toLowerCase()
+          );
+
+          if (product) {
+            addRow(product);
+            scanStatusEl.textContent = `✅ Added: ${product.name}`;
+            scanStatusEl.style.color = '#10b981';
+
+            // Play success beep
+            try {
+              const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+              const oscillator = audioCtx.createOscillator();
+              const gainNode = audioCtx.createGain();
+              oscillator.connect(gainNode);
+              gainNode.connect(audioCtx.destination);
+              oscillator.frequency.value = 800;
+              oscillator.type = 'sine';
+              gainNode.gain.value = 0.1;
+              oscillator.start();
+              setTimeout(() => oscillator.stop(), 100);
+            } catch (e) { /* Audio not supported */ }
+
+            // Reset status after 2 seconds
+            setTimeout(() => {
+              if (scannerRunning) {
+                scanStatusEl.textContent = '📷 Ready to scan next barcode...';
+                scanStatusEl.style.color = '#3b82f6';
+              }
+            }, 2000);
+          } else {
+            scanStatusEl.textContent = `❌ Not found: ${text}`;
+            scanStatusEl.style.color = '#ef4444';
+          }
+        },
+        () => {
+          // Ignore scan errors
+        }
+      ).then(() => {
+        scannerRunning = true;
+        cameraAvailable = true;
+        scanStatusEl.innerHTML = `
+          <div style="color: #3b82f6;">📷 Scanning... Point camera at barcode</div>
+          <small style="color: #666; display: block; margin-top: 0.5rem;">Tip: Hold the barcode steady, ensure good lighting</small>
+        `;
+      }).catch((err) => {
+        cameraAvailable = false;
+        console.error('Camera error:', err);
+        scanStatusEl.innerHTML = `
+          <div style="color: #ef4444; margin-bottom: 1rem;">⚠️ Camera access denied or unavailable</div>
+          <div style="color: #666; font-size: 0.9rem; margin-bottom: 1rem;">
+            Please allow camera access or use manual entry.
+          </div>
+          <button type="button" id="fallback-manual-entry" 
+                  style="padding: 0.75rem 1.5rem; background: #333; color: white; border: none; cursor: pointer;">
+            Enter Barcode Manually
+          </button>
+        `;
+        document.getElementById('fallback-manual-entry')?.addEventListener('click', () => {
+          closeCameraScanner();
+          showManualBarcodeEntry();
+        });
+      });
     }).catch((err) => {
-      scanStatusEl.textContent = `Camera error: ${err}`;
-      scanStatusEl.style.color = '#ef4444';
+      cameraAvailable = false;
+      scanStatusEl.innerHTML = `
+        <div style="color: #ef4444; margin-bottom: 1rem;">❌ Cannot access camera: ${err}</div>
+        <button type="button" id="fallback-manual-entry" 
+                style="padding: 0.75rem 1.5rem; background: #333; color: white; border: none; cursor: pointer;">
+          Enter Barcode Manually
+        </button>
+      `;
+      document.getElementById('fallback-manual-entry')?.addEventListener('click', () => {
+        closeCameraScanner();
+        showManualBarcodeEntry();
+      });
     });
   }
 

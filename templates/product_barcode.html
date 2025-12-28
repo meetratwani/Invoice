@@ -5,7 +5,7 @@
 {% block content %}
 <section class="page">
   <div class="page-header">
-    <h2>Barcode</h2>
+    <h2>Barcode & QR Code</h2>
     <div>
       <a href="{{ url_for('products_list') }}" class="btn">Back</a>
       <button type="button" class="btn primary" onclick="window.print()">Print</button>
@@ -17,29 +17,104 @@
       <h3 style="margin-top:0;">{{ product.name }}</h3>
       <p style="margin:0.25rem 0; color:#6b7280;">SKU: {{ product.sku or '-' }}</p>
       <p style="margin:0.25rem 0; color:#6b7280;">Barcode: <strong>{{ product.barcode or '-' }}</strong></p>
-      <p style="margin-top:0.75rem; color:#6b7280;">Cut/print this label and stick it on the product. Then scan it from the invoice screen.</p>
+      <p style="margin-top:0.75rem; color:#6b7280;">Cut/print these labels and stick on the product. <strong>QR codes
+          are easier to scan with phone cameras.</strong></p>
+
+      <div style="margin-top: 1rem; padding: 1rem; background: #f0f9ff; border-radius: 8px; border: 1px solid #bae6fd;">
+        <strong style="color: #0369a1;">💡 Scanning Tips:</strong>
+        <ul style="margin: 0.5rem 0 0 1rem; color: #0369a1; font-size: 0.9rem;">
+          <li>Use the <strong>QR Code</strong> for phone/tablet camera scanning</li>
+          <li>Use the <strong>Barcode</strong> for USB barcode scanners</li>
+          <li>Ensure good lighting when scanning</li>
+        </ul>
+      </div>
     </div>
 
-    <div style="flex: 1 1 320px; border:1px dashed #d1d5db; padding:1rem; border-radius:8px; background:#fff;">
+    <!-- QR Code (Recommended for Camera) -->
+    <div style="flex: 1 1 200px; border:2px solid #10b981; padding:1rem; border-radius:8px; background:#fff;">
+      <div style="text-align:center; font-weight:700; margin-bottom:0.5rem; color: #10b981;">📱 QR CODE (Easy to Scan)
+      </div>
+      <div style="text-align:center; margin-bottom:0.5rem; font-size: 0.9rem;">{{ product.name }}</div>
+      <div id="qrcode-container" style="display: flex; justify-content: center; margin: 0.5rem 0;"></div>
+      <div
+        style="text-align:center; margin-top:0.5rem; font-variant-numeric: tabular-nums; font-size: 0.85rem; color: #666;">
+        {{ product.barcode or product.sku }}</div>
+    </div>
+
+    <!-- Traditional Barcode -->
+    <div style="flex: 1 1 280px; border:1px dashed #d1d5db; padding:1rem; border-radius:8px; background:#fff;">
       <div style="text-align:center; font-weight:600; margin-bottom:0.5rem;">{{ store.store_name }}</div>
-      <div style="text-align:center; margin-bottom:0.35rem;">{{ product.name }}</div>
-      <svg id="barcode-svg"></svg>
-      <div style="text-align:center; margin-top:0.35rem; font-variant-numeric: tabular-nums;">{{ product.barcode }}</div>
+      <div style="text-align:center; margin-bottom:0.35rem; font-size: 0.9rem;">{{ product.name }}</div>
+      <svg id="barcode-svg" style="display: block; margin: 0 auto;"></svg>
+      <div id="barcode-error" style="display: none; text-align: center; color: #ef4444; padding: 1rem;">
+        Barcode generation failed. Use QR code instead.
+      </div>
+      <div style="text-align:center; margin-top:0.35rem; font-variant-numeric: tabular-nums; font-size: 0.85rem;">{{
+        product.barcode }}</div>
     </div>
   </div>
 </section>
 
+<!-- JsBarcode for traditional barcodes -->
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+<!-- QRCode.js for QR codes -->
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+
 <script>
   (function () {
-    if (!window.JsBarcode) return;
-    const value = "{{ (product.barcode or '')|e }}";
-    const svg = document.getElementById('barcode-svg');
-    if (!value || !svg) return;
-    try {
-      JsBarcode(svg, value, { format: 'CODE128', displayValue: false, fontSize: 14, height: 80, margin: 8 });
-    } catch (e) {
-      svg.innerHTML = '';
+    const barcodeValue = "{{ (product.barcode or product.sku or '')|e }}";
+    const barcodeSvg = document.getElementById('barcode-svg');
+    const barcodeError = document.getElementById('barcode-error');
+    const qrcodeContainer = document.getElementById('qrcode-container');
+
+    if (!barcodeValue) return;
+
+    // Generate QR Code (preferred for camera scanning)
+    if (window.QRCode && qrcodeContainer) {
+      try {
+        QRCode.toCanvas(barcodeValue, {
+          width: 150,
+          margin: 1,
+          errorCorrectionLevel: 'M'
+        }, function (err, canvas) {
+          if (!err && canvas) {
+            qrcodeContainer.appendChild(canvas);
+          } else {
+            qrcodeContainer.innerHTML = '<div style="color: #ef4444;">QR generation failed</div>';
+          }
+        });
+      } catch (e) {
+        console.error('QR Code error:', e);
+      }
+    }
+
+    // Generate traditional barcode
+    if (window.JsBarcode && barcodeSvg) {
+      // Try CODE39 first (simpler, works with alphanumeric)
+      const formats = ['CODE39', 'CODE128'];
+      let success = false;
+
+      for (const format of formats) {
+        try {
+          JsBarcode(barcodeSvg, barcodeValue.toUpperCase(), {
+            format: format,
+            displayValue: false,
+            fontSize: 12,
+            height: 60,
+            margin: 4,
+            width: 2
+          });
+          success = true;
+          break;
+        } catch (e) {
+          console.warn(`${format} failed:`, e);
+        }
+      }
+
+      if (!success) {
+        barcodeSvg.style.display = 'none';
+        barcodeError.style.display = 'block';
+      }
     }
   })();
 </script>
