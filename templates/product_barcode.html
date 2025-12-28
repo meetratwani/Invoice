@@ -1,142 +1,424 @@
 {% extends 'base.html' %}
 
-{% block title %}Barcode - {{ product.name }}{% endblock %}
+{% block title %}Print Labels - {{ product.name }}{% endblock %}
 
 {% block content %}
-<section class="page">
-  <div class="page-header no-print">
-    <h2>Barcode & QR Code</h2>
-    <div>
-      <a href="{{ url_for('products_list') }}" class="btn">Back</a>
-      <button type="button" class="btn primary" onclick="window.print()">Print</button>
+<section class="page" style="max-width: 100%; padding: 0;">
+  <!-- Control Panel (Hidden on Print) -->
+  <div class="no-print settings-panel">
+    <div class="header-row">
+      <h2 style="margin:0;">Print Labels: {{ product.name }}</h2>
+      <div class="actions">
+        <a href="{{ url_for('products_list') }}" class="btn">Back</a>
+        <button type="button" class="btn primary" onclick="window.print()">Print Labels</button>
+      </div>
+    </div>
+
+    <div class="controls-grid">
+      <div class="control-group">
+        <label>Code Type</label>
+        <div class="toggle-group">
+          <label class="radio-label">
+            <input type="radio" name="codeType" value="barcode" checked onchange="updateLayout()">
+            <span>Barcode Only</span>
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="codeType" value="qrcode" onchange="updateLayout()">
+            <span>QR Code Only</span>
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="codeType" value="both" onchange="updateLayout()">
+            <span>Both</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label for="quantity">Quantity</label>
+        <div class="qty-input-wrapper">
+          <input type="number" id="quantity" value="24" min="1" max="500" oninput="updateLayout()" class="input-qty">
+          <span style="font-size: 0.8rem; color: #666;">copies</span>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label>Layout Preview</label>
+        <div class="size-info" id="size-info">Calculated automatically</div>
+      </div>
     </div>
   </div>
 
-  <div style="display:flex; gap:1rem; flex-wrap:wrap; align-items:flex-start;">
-    <div style="flex: 1 1 300px;">
-      <h3 style="margin-top:0;">{{ product.name }}</h3>
-      <p style="margin:0.25rem 0; color:#333;">SKU: {{ product.sku or '-' }}</p>
-      <p style="margin:0.25rem 0; color:#333;">Barcode: <strong>{{ product.barcode or '-' }}</strong></p>
-
-      <div style="margin-top: 1rem; padding: 1rem; border: 1px solid #ccc; border-radius: 4px;">
-        <strong style="color: #000;">Scanning Tips:</strong>
-        <ul style="margin: 0.5rem 0 0 1rem; color: #333; font-size: 0.9rem;">
-          <li>Use <strong>QR Code</strong> for phone/tablet camera scanning</li>
-          <li>Use <strong>Barcode</strong> for USB barcode scanners</li>
-          <li>Ensure good lighting when scanning</li>
-        </ul>
-      </div>
-    </div>
-
-    <!-- QR Code -->
-    <div style="flex: 0 0 160px; border:1px solid #000; padding:1rem; background:#fff; align-self: flex-start;">
-      <div style="text-align:center; font-weight:700; margin-bottom:0.5rem; color: #000; font-size: 0.9rem;">QR CODE
-      </div>
-      <div id="qrcode-container" style="display: flex; justify-content: center; margin: 0.5rem 0;"></div>
-      <div style="text-align:center; margin-top:0.25rem; font-size: 0.8rem; color: #000;">{{ product.barcode or
-        product.sku }}</div>
-    </div>
-
-    <!-- Traditional Barcode -->
-    <div style="flex: 0 0 220px; border:1px solid #000; padding:1rem; background:#fff; align-self: flex-start;">
-      <div style="text-align:center; font-weight:600; margin-bottom:0.25rem; font-size: 0.9rem;">{{ store.store_name }}
-      </div>
-      <div style="text-align:center; margin-bottom:0.25rem; font-size: 0.8rem;">{{ product.name }}</div>
-      <svg id="barcode-svg" style="display: block; margin: 0 auto;"></svg>
-      <div id="barcode-error"
-        style="display: none; text-align: center; color: #000; padding: 0.5rem; font-size: 0.8rem;">
-        Generate Failed
-      </div>
-      <div
-        style="text-align:center; margin-top:0.25rem; font-variant-numeric: tabular-nums; font-size: 0.8rem; letter-spacing: 1px;">
-        {{ product.barcode }}</div>
-    </div>
+  <!-- Print Area -->
+  <div id="print-area" class="print-grid type-barcode">
+    <!-- Labels will be injected here -->
   </div>
 </section>
 
-<!-- JsBarcode for traditional barcodes -->
+<!-- Libraries -->
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
-<!-- QRCode.js (Davidshimjs) - More robust browser support -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
 <script>
-  (function () {
-    const barcodeValue = "{{ (product.barcode or product.sku or '')|e }}";
-    const barcodeSvg = document.getElementById('barcode-svg');
-    const barcodeError = document.getElementById('barcode-error');
-    const qrcodeContainer = document.getElementById('qrcode-container');
+  // Product Data
+  const productData = {
+    name: "{{ product.name|e }}",
+    sku: "{{ product.sku|e }}",
+    barcode: "{{ (product.barcode or product.sku or '')|e }}",
+    storeName: "{{ store.store_name|e }}",
+    price: "{{ product.unit_price }}"
+  };
 
-    if (!barcodeValue) return;
+  const printArea = document.getElementById('print-area');
+  const sizeInfo = document.getElementById('size-info');
 
-    // Generate QR Code
-    if (window.QRCode && qrcodeContainer) {
-      try {
-        qrcodeContainer.innerHTML = '';
-        new QRCode(qrcodeContainer, {
-          text: barcodeValue,
-          width: 100,  // Small size
-          height: 100, // Small size
-          colorDark: "#000000",
-          colorLight: "#ffffff",
-          correctLevel: QRCode.CorrectLevel.M
-        });
-      } catch (e) {
-        console.error('QR Code error:', e);
-        qrcodeContainer.innerHTML = 'Error';
+  // Initialization
+  document.addEventListener('DOMContentLoaded', () => {
+    updateLayout();
+  });
+
+  function updateLayout() {
+    const qtyInput = document.getElementById('quantity');
+    let qty = parseInt(qtyInput.value);
+
+    // Basic validation
+    if (isNaN(qty) || qty < 1) {
+      qty = 1;
+    }
+
+    const type = document.querySelector('input[name="codeType"]:checked').value;
+
+    // Clear current
+    printArea.innerHTML = '';
+
+    // Determine grid class based on type for better fitting
+    printArea.className = 'print-grid type-' + type;
+
+    // Generate Labels
+    for (let i = 0; i < qty; i++) {
+      const label = createLabel(type, i);
+      printArea.appendChild(label);
+
+      // Render Codes
+      if (type === 'barcode' || type === 'both') {
+        const barSvg = label.querySelector('.barcode-svg');
+        if (barSvg) renderBarcode(barSvg);
+      }
+      if (type === 'qrcode' || type === 'both') {
+        const qrDiv = label.querySelector('.qrcode-div');
+        if (qrDiv) renderQRCode(qrDiv);
       }
     }
 
-    // Generate traditional barcode
-    if (window.JsBarcode && barcodeSvg) {
-      // Try CODE39 first (simpler) then CODE128
-      const formats = ['CODE39', 'CODE128'];
-      let success = false;
+    updateStatus(qty, type);
+  }
 
-      for (const format of formats) {
-        try {
-          JsBarcode(barcodeSvg, barcodeValue.toUpperCase(), {
-            format: format,
-            displayValue: false,
-            fontSize: 12,
-            height: 40,   // Smaller height
-            margin: 2,
-            width: 1.5    // Thinner bars
-          });
-          success = true;
-          break;
-        } catch (e) {
-          // Continue to next format
-        }
-      }
+  function createLabel(type, index) {
+    const card = document.createElement('div');
+    card.className = `label-card ${type}`;
 
-      if (!success) {
-        barcodeSvg.style.display = 'none';
-        barcodeError.style.display = 'block';
-      }
+    // Price formatting
+    const priceFormatted = parseFloat(productData.price).toFixed(2);
+
+    const storeHtml = `<div class="store-name">${productData.storeName}</div>`;
+    const nameHtml = `<div class="p-name">${productData.name}</div>`;
+
+    let html = `
+      <div class="label-header">
+        ${storeHtml}
+        ${nameHtml}
+      </div>
+    `;
+
+    if (type === 'barcode') {
+      html += `
+        <div class="barcode-wrapper">
+          <svg class="barcode-svg"></svg>
+          <div class="code-text">${productData.barcode}</div>
+        </div>
+      `;
+    } else if (type === 'qrcode') {
+      html += `
+        <div class="qrcode-wrapper">
+          <div class="qrcode-div"></div>
+          <div class="code-text" style="margin-top:4px;">${productData.barcode}</div>
+        </div>
+      `;
+    } else if (type === 'both') {
+      // Side by side layout with ample spacing
+      html += `
+        <div class="both-row">
+          <div class="col-qr">
+            <div class="qrcode-div"></div>
+          </div>
+          <div class="col-bar">
+            <svg class="barcode-svg"></svg>
+            <div class="code-text">${productData.barcode}</div>
+          </div>
+        </div>
+      `;
     }
-  })();
+
+    card.innerHTML = html;
+    return card;
+  }
+
+  function renderBarcode(element) {
+    if (!element || !window.JsBarcode) return;
+    try {
+      JsBarcode(element, productData.barcode, {
+        format: "CODE128",
+        width: 2.0,     // Thicker bars for clarity
+        height: 45,     // Taller bars
+        displayValue: false,
+        margin: 5
+      });
+    } catch (e) {
+      console.warn("Barcode err", e);
+    }
+  }
+
+  function renderQRCode(element) {
+    if (!element || !window.QRCode) return;
+    try {
+      element.innerHTML = "";
+      new QRCode(element, {
+        text: productData.barcode,
+        width: 80,  // Larger clearer QR
+        height: 80,
+        colorDark: "#000000",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    } catch (e) {
+      console.warn("QR err", e);
+    }
+  }
+
+  function updateStatus(qty, type) {
+    sizeInfo.textContent = `${qty} copies. High Quality Mode.`;
+  }
+
 </script>
 
 <style>
-  @media print {
+  /* Base GUI Styles */
+  .settings-panel {
+    background: #fff;
+    border-bottom: 1px solid #e0e0e0;
+    padding: 1.5rem 2rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  }
 
-    .no-print,
-    .btn,
-    .page-header {
-      display: none !important;
+  .header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  .controls-grid {
+    display: flex;
+    gap: 3rem;
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .control-group label {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #4b5563;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .qty-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .input-qty {
+    padding: 0.5rem;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    width: 80px;
+    font-size: 1.1rem;
+    text-align: center;
+  }
+
+  .toggle-group {
+    display: flex;
+    gap: 1.5rem;
+    background: #f3f4f6;
+    padding: 0.5rem;
+    border-radius: 8px;
+  }
+
+  .radio-label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    cursor: pointer;
+    font-size: 0.95rem;
+    color: #374151;
+  }
+
+  .radio-label input {
+    accent-color: #2563eb;
+    width: 1.1rem;
+    height: 1.1rem;
+  }
+
+  /* PRINT PREVIEW GRID */
+  .print-grid {
+    display: grid;
+    gap: 4mm;
+    padding: 2rem;
+    background: #f8fafc;
+    min-height: 500px;
+    justify-content: center;
+    /* Center the grid on screen */
+  }
+
+  /* LABEL CARD DESIGNS */
+  .label-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    /* Standard visible border for preview */
+    padding: 0.75rem;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-evenly;
+    /* Better spacing vertical */
+    page-break-inside: avoid;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    box-sizing: border-box;
+    /* Removed fixed height to allow content to dictate, but set min-height */
+    min-height: 140px;
+    background: #fff;
+  }
+
+  .label-header {
+    margin-bottom: 0.5rem;
+    width: 100%;
+  }
+
+  .store-name {
+    font-size: 0.8rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+    color: #1f2937;
+    /* Ensure not cut off */
+    line-height: 1.2;
+  }
+
+  .p-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 2px;
+  }
+
+  .code-text {
+    font-family: 'Courier New', monospace;
+    font-size: 0.8rem;
+    /* Larger font */
+    margin-top: 4px;
+    letter-spacing: 1px;
+    font-weight: bold;
+  }
+
+  .barcode-svg {
+    display: block;
+    max-width: 100%;
+  }
+
+  /* Both Layout */
+  .both-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    /* More space between QR and Barcode */
+    width: 100%;
+  }
+
+  .col-qr {
+    flex: 0 0 auto;
+  }
+
+  .col-bar {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* GRID SIZING - PRIORITIZE QUALITY OVER DENSITY */
+  /* A4 is ~210mm wide. 
+     If we want high quality, let's target ~2 cols for large labels or 3 cols for smaller. */
+
+  /* Barcode Only: Needs width for long bars. ~200px+ */
+  .print-grid.type-barcode {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+
+  /* QR Only: Square-ish. ~140px+ */
+  .print-grid.type-qrcode {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
+
+  /* Both: Needs significant width. ~300px+ */
+  .print-grid.type-both {
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  }
+
+  /* PRINT MEDIA QUERY */
+  @media print {
+    @page {
+      size: A4;
+      margin: 10mm;
+      /* Safe margin */
     }
 
     body {
       background: white;
-    }
-
-    .page {
+      -webkit-print-color-adjust: exact;
+      padding: 0;
       margin: 0;
-      padding: 0;
     }
 
-    section {
+    .no-print {
+      display: none !important;
+    }
+
+    .print-grid {
+      background: white;
       padding: 0;
+      gap: 2mm;
+      /* Physical gap between stickers on sheet */
+      display: grid;
+      width: 100%;
+      /* Reset any centering constraints if needed */
+    }
+
+    .label-card {
+      border: 1px dashed #ccc;
+      /* Guide lines */
+      box-shadow: none;
+      break-inside: avoid;
     }
   }
 </style>
